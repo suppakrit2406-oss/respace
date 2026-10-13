@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ReSpace · ศูนย์ซ่อมสร้างชุมชน</title>
+<meta name="description" content="บริการสาธารณะซ่อมเครื่องใช้ไฟฟ้าฟรีสำหรับประชาชน ตรวจเบื้องต้นออนไลน์ จองโต๊ะซ่อม และเช็กอินด้วย QR">
+<meta name="theme-color" content="#2147C7">
+<meta name="robots" content="noindex">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">ข้ามไปเนื้อหาหลัก</a>
+<noscript><p style="padding:16px">เว็บไซต์นี้ต้องเปิดใช้ JavaScript</p></noscript>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">Re<span>Space</span></div>
+    <div class="row" id="user"></div>
+  </header>
+  <main id="main" class="stack" tabindex="-1"></main>
+</div>
+<nav class="tabs" aria-label="เมนูหลัก" hidden><div id="tabs"></div></nav>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<script src="assets/supabase.js"></script>
+<script src="assets/config.js"></script>
+<script src="assets/qrcode.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
