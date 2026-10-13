@@ -650,4 +650,6 @@ sb.auth.onAuthStateChange((event, session) => {
 render();
 
 /* ติดตั้งเป็นแอปบนหน้าจอโทรศัพท์ได้ */
-if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) { const hadSW = !!navigator.serviceWorker.controller; let reloaded = false;
+  navigator.serviceWorker.register('sw.js', {updateViaCache:'none'}).catch(() => {});
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadSW && !reloaded){ reloaded = true; location.reload(); } }); }
