@@ -326,6 +326,7 @@ function vAssess(v){ const c = by('cases', v.id), d = S.d, dev = by('devices', c
 function vJobs(){ const bs = S.bookings.filter(b => ['confirmed','checkedin','inprogress'].includes(b.status) || (b.status === 'completed' && by('cases', b.caseId)?.status !== 'closed')).sort((a, b) => (a.date + a.slot).localeCompare(b.date + b.slot));
   const early = S.settings.allow_early_checkin === 'true', next = bs.find(b => b.status === 'confirmed');
   return `<h1 tabindex="-1">งานหน้างาน</h1><div class="card"><h2>เช็กอินผู้รับบริการ</h2><div class="row"><input id="ci-code" class="grow mono" data-m="code" aria-label="รหัสเช็กอิน" placeholder="สแกนหรือพิมพ์รหัส RS-XXXXX-XXXXX" value="${esc(S.d.code)}" data-enter="checkin"><button type="button" class="btn pri" data-a="checkin">เช็กอิน</button></div>
+  <div><button type="button" class="btn" data-a="scan">สแกน QR ด้วยกล้อง</button></div>
   ${early && next ? `<button type="button" class="link small" data-a="fillCode" data-id="${esc(next.token)}">เดโม: เติมรหัสของคิวถัดไป</button>` : ''}
   <p class="small muted">${early ? 'โหมดทดลองเปิดอยู่: เช็กอินก่อนวันนัดได้ (แอดมินปิดได้ที่หน้าบันทึก)' : 'รหัสใช้ได้เฉพาะวันนัด'}</p></div>
   ${bs.map(b => { const c = by('cases', b.caseId); return `<div class="card"><div class="row between"><span class="mono">${b.id} · ${c.id}</span>${chip(BSTAT[b.status])}</div><h3>${fdate(b.date)} ${b.slot} · ${esc(station(b.stationId).name)}</h3>
@@ -481,6 +482,7 @@ const A = {
   async review(e){ if (!S.d.stars) return toast('เลือกจำนวนดาว'); await rpc('submit_review', {p_booking:e.id, p_stars:S.d.stars, p_body:S.d.rv || ''}); await refresh(); S.d = {}; toast('ขอบคุณสำหรับรีวิว'); },
   /* หน้างาน */
   fillCode(e){ S.d.code = e.id; },
+  async scan(){ await openScanner(); },
   async checkin(){ const id = await rpc('check_in', {p_token:S.d.code || ''}); await refresh(); go('job', id); toast('เช็กอินแล้ว'); },
   async ack(e){ await rpc('ack_call', {p_booking:e.id}); await refresh(); },
   async startRepair(e){ await rpc('start_repair', {p_booking:e.id}); await refresh(); },
@@ -497,7 +499,33 @@ const A = {
   async restock(e){ await rpc('restock_part', {p_part:e.id, p_qty:5}); await refresh(); toast('รับอะไหล่เข้าแล้ว'); },
   async toggleEarly(){ await rpc('set_setting', {p_key:'allow_early_checkin', p_value:S.settings.allow_early_checkin === 'true' ? 'false' : 'true'}); await refresh(); }
 };
-async function markRead(){ if (!S.notifs.some(n => !n.read)) return; await sb.from('notifications').update({read:true}).eq('user_id', S.me.id).eq('read', false); }
+/* ----- สแกน QR ด้วยกล้อง (ใช้ BarcodeDetector ถ้ามี ไม่มีใช้ jsQR) ----- */
+let scanStream = null;
+function closeScanner(){ if (scanStream){ scanStream.getTracks().forEach(t => t.stop()); scanStream = null; } $('#scanner')?.remove(); }
+async function openScanner(){
+  if (!navigator.mediaDevices?.getUserMedia) return toast('เบราว์เซอร์นี้เปิดกล้องไม่ได้ พิมพ์รหัสแทน');
+  const box = document.createElement('div'); box.id = 'scanner'; box.className = 'scan'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-label', 'สแกน QR เช็กอิน');
+  box.innerHTML = `<div class="scan-in"><p class="small" role="status">เล็งกล้องไปที่ QR ของผู้รับบริการ</p><video id="scan-v" playsinline muted></video><button type="button" class="btn" id="scan-x">ปิดกล้อง</button></div>`;
+  document.body.appendChild(box); $('#scan-x').onclick = closeScanner; $('#scan-x').focus();
+  box.addEventListener('keydown', e => { if (e.key === 'Escape') closeScanner(); });
+  try { scanStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}); }
+  catch (e){ closeScanner(); return toast('ไม่ได้รับอนุญาตให้ใช้กล้อง พิมพ์รหัสแทน'); }
+  const v = $('#scan-v'); v.srcObject = scanStream; await v.play().catch(() => {});
+  const det = 'BarcodeDetector' in window ? new BarcodeDetector({formats:['qr_code']}) : null, cv = document.createElement('canvas'), cx = cv.getContext('2d', {willReadFrequently:true});
+  const tick = async () => {
+    if (!scanStream) return;
+    let text = null;
+    try {
+      if (det){ const r = await det.detect(v); text = r[0]?.rawValue || null; }
+      else if (v.videoWidth){ cv.width = v.videoWidth; cv.height = v.videoHeight; cx.drawImage(v, 0, 0); const img = cx.getImageData(0, 0, cv.width, cv.height); text = window.jsQR ? jsQR(img.data, img.width, img.height)?.data || null : null; }
+    } catch (e) {}
+    if (text && /^RS-/i.test(text.trim())){ closeScanner(); S.d.code = text.trim(); try { await A.checkin(); } catch (err) { fail(err); } render(); return; }
+    setTimeout(tick, 250);
+  };
+  tick();
+}
+
+async function markRead(){ if (!S.notifs.some(n => !n.read)) return; await sb.from('notifications').update({read:true}).eq('user_id', S.me.id).eq('read', false); setTimeout(() => { S.notifs.forEach(n => n.read = true); render(); }, 4000); }
 
 /* ================= วาดหน้าจอ ================= */
 let lastViewKey = '';
@@ -509,7 +537,8 @@ function render(){
     $('nav.tabs').hidden = false;
     user.innerHTML = `<span class="small"><b>${esc(S.me.full_name || S.session.user.email)}</b> · ${ROLE[role()]}</span><button type="button" class="btn sm" data-a="logout">ออกจากระบบ</button>`;
     main.innerHTML = role() === 'citizen' ? citizenView() : role() === 'tech' ? techView() : adminView();
-    tabs.innerHTML = TABS[role()].map(([k, t]) => `<button type="button" data-a="tab" data-id="${k}" ${!S.view && S.tab === k ? 'aria-current="page"' : ''}>${t}</button>`).join('');
+    const unread = S.notifs.filter(n => !n.read).length;
+    tabs.innerHTML = TABS[role()].map(([k, t]) => `<button type="button" data-a="tab" data-id="${k}" ${!S.view && S.tab === k ? 'aria-current="page"' : ''}>${t}${k === 'me' && unread ? ` <span class="badge" aria-label="แจ้งเตือนใหม่ ${unread} รายการ">${unread}</span>` : ''}</button>`).join('');
   }
   document.querySelectorAll('[data-qr]').forEach(el => { try { const q = qrcode(0, 'M'); q.addData(el.dataset.qr); q.make(); el.innerHTML = q.createSvgTag({cellSize:4, margin:0, scalable:true}); } catch (e) { el.hidden = true; } });
   const cl = $('#chatlog'); if (cl) cl.scrollTop = cl.scrollHeight;
@@ -548,3 +577,6 @@ sb.auth.onAuthStateChange((event, session) => {
   }, 0);
 });
 render();
+
+/* ติดตั้งเป็นแอปบนหน้าจอโทรศัพท์ได้ */
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});

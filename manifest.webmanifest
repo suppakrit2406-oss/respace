@@ -1,0 +1,16 @@
+{
+  "name": "ReSpace · ศูนย์ซ่อมสร้างชุมชน",
+  "short_name": "ReSpace",
+  "description": "บริการสาธารณะซ่อมเครื่องใช้ไฟฟ้าฟรีสำหรับประชาชน",
+  "lang": "th",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#EBF0F1",
+  "theme_color": "#2147C7",
+  "icons": [
+    {"src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
