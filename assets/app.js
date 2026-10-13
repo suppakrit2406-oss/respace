@@ -106,6 +106,12 @@ async function loadAll(){
 const DEMO = [['citizen@respace.demo','ประชาชน (สมชาย)'],['wit@respace.demo','ช่าง (ช่างวิทย์)']];
 function vAuth(){
   const a = S.auth, signup = a.mode === 'signup';
+  if (a.mode === 'forgot') return `<div class="stack" style="max-width:440px;margin-inline:auto;width:100%"><div><p class="eyebrow">${ORG}</p><h1 tabindex="-1">ลืมรหัสผ่าน</h1></div>
+  <form class="card" id="forgot-form" novalidate><p class="small muted">กรอกอีเมลที่ใช้ลงทะเบียน ระบบจะส่งลิงก์ตั้งรหัสผ่านใหม่ไปให้</p>
+  <label class="f">อีเมล<input id="fg-email" data-m="email" type="email" autocomplete="email" required value="${esc(a.email)}"></label>
+  <button class="btn pri" type="submit" ${S.busy ? 'disabled' : ''}>${S.busy ? 'กำลังส่ง…' : 'ส่งลิงก์ตั้งรหัสผ่านใหม่'}</button></form>
+  ${a.msg ? `<div class="banner info" role="status">${esc(a.msg)}</div>` : ''}
+  <div><button type="button" class="link" data-a="authMode" data-id="login">← กลับไปเข้าสู่ระบบ</button></div></div>`;
   return `<div class="stack" style="max-width:440px;margin-inline:auto;width:100%">
   <div><p class="eyebrow">${ORG} · บริการสาธารณะ ไม่มีค่าใช้จ่าย</p><h1 tabindex="-1">${signup ? 'ลงทะเบียนใช้บริการ' : 'เข้าสู่ระบบ'}</h1></div>
   <div class="seg" role="group" aria-label="เลือกหน้า"><button type="button" data-a="authMode" data-id="login" aria-pressed="${!signup}">เข้าสู่ระบบ</button><button type="button" data-a="authMode" data-id="signup" aria-pressed="${signup}">ลงทะเบียน</button></div>
@@ -117,6 +123,7 @@ function vAuth(){
     <label class="f">รหัสผ่าน${signup ? ' (อย่างน้อย 8 ตัวอักษร)' : ''}<input id="au-pw" data-m="pw" type="password" autocomplete="${signup ? 'new-password' : 'current-password'}" required value="${esc(a.pw)}"></label>
     ${signup ? `<label class="row small"><input type="checkbox" id="au-pdpa" data-m="pdpa" style="width:auto" ${a.pdpa ? 'checked' : ''}> ยินยอมให้ศูนย์เก็บชื่อ เบอร์โทร และรูปเครื่องที่ส่ง เพื่อให้บริการซ่อมเท่านั้น</label>` : ''}
     <button class="btn pri" type="submit" ${S.busy ? 'disabled' : ''}>${S.busy ? 'กำลังดำเนินการ…' : signup ? 'ลงทะเบียน' : 'เข้าสู่ระบบ'}</button>
+    ${signup ? '' : `<button type="button" class="link small" data-a="authMode" data-id="forgot">ลืมรหัสผ่าน</button>`}
   </form>
   ${a.msg ? `<div class="banner info" role="status">${esc(a.msg)}</div>` : ''}
   ${S.pub ? `<div class="card"><h2>ผลงานของศูนย์</h2><div class="stat"><div><b>${S.pub.done}</b><span class="small muted">งานซ่อมที่จบ</span></div><div><b>${S.pub.done ? Math.round(S.pub.ok / S.pub.done * 100) + '%' : '–'}</b><span class="small muted">ซ่อมสำเร็จ</span></div><div><b>${Number(S.pub.kg).toFixed(1)} กก.</b><span class="small muted">ขยะอิเล็กทรอนิกส์ที่ลดได้</span></div><div><b>${baht(S.pub.value)}</b><span class="small muted">มูลค่าอะไหล่ที่ประชาชนไม่ต้องจ่าย</span></div></div></div>` : ''}
@@ -124,6 +131,10 @@ function vAuth(){
   <div class="opt">${DEMO.map(([e,t]) => `<button type="button" data-a="demoLogin" data-id="${e}">${t}</button>`).join('')}</div></div>`}
   </div>`;
 }
+
+function vNewPw(){ return `<div class="stack" style="max-width:440px;margin-inline:auto;width:100%"><div><p class="eyebrow">${ORG}</p><h1 tabindex="-1">ตั้งรหัสผ่านใหม่</h1></div>
+  <form class="card" id="newpw-form" novalidate><label class="f">รหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร)<input id="np-pw" data-m="newpw" type="password" autocomplete="new-password" required></label>
+  <button class="btn pri" type="submit" ${S.busy ? 'disabled' : ''}>บันทึกรหัสผ่านใหม่</button></form></div>`; }
 
 /* ================= มุมมองประชาชน ================= */
 function citizenView(){
@@ -376,13 +387,16 @@ function aSched(){ const ds = days().slice(0, 3), act = S.bookings.filter(live);
   return `<h1 tabindex="-1">ตารางคิว</h1>${ds.map(k => `<h2>${fdate(k)}</h2><div class="tw" tabindex="0"><table><caption class="small muted" style="text-align:left">คิวรายโต๊ะ ${fdate(k)}</caption><thead><tr><th scope="col">เวลา</th>${S.stations.map(s => `<th scope="col">${s.id}</th>`).join('')}</tr></thead><tbody>
   ${S.slots.map(s => `<tr><th scope="row">${s}</th>${S.stations.map(st => { const b = act.find(x => x.date === k && x.slot === s && x.stationId === st.id); return `<td>${b ? `<span class="chip ${BSTAT[b.status][1]}">${b.id}</span>` : '<span class="muted">ว่าง</span>'}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`).join('')}
   <h2>การจองทั้งหมด</h2><div class="tw" tabindex="0"><table><thead><tr><th scope="col">รหัส</th><th scope="col">นัด</th><th scope="col">ผู้รับบริการ</th><th scope="col">สถานะ</th><th scope="col"><span class="sr">การดำเนินการ</span></th></tr></thead><tbody>${S.bookings.slice().reverse().map(b => `<tr><td class="mono">${b.id}</td><td>${fdate(b.date)} ${b.slot}</td><td>${esc(userName(b.userId))}</td><td>${chip(BSTAT[b.status])}</td><td>${b.status === 'confirmed' ? `<button type="button" class="btn sm" data-a="noshow" data-id="${b.id}">${S.d.ns === b.id ? 'กดอีกครั้งเพื่อยืนยัน' : 'ไม่มาตามนัด'}</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">ยังไม่มีการจอง</td></tr>'}</tbody></table></div>`; }
-function aUsers(){ const req = S.requests.filter(x => x.status === 'pending'), cit = S.users.filter(u => u.role === 'citizen').sort((a, b) => (a.verified - b.verified) || a.full_name.localeCompare(b.full_name));
+const roleBtn = (u, r, label) => `<button type="button" class="btn sm" data-a="setRole" data-id="${u.id}" data-r="${r}">${S.d.rc === u.id + r ? 'กดอีกครั้งเพื่อยืนยัน' : label}</button>`;
+function aUsers(){ const req = S.requests.filter(x => x.status === 'pending'), staff = S.users.filter(u => u.role !== 'citizen'), cit = S.users.filter(u => u.role === 'citizen').sort((a, b) => (a.verified - b.verified) || a.full_name.localeCompare(b.full_name));
   return `<h1 tabindex="-1">ผู้ใช้</h1>
   ${req.length ? `<div class="banner warn"><b>คำขอลบบัญชีและข้อมูล ${req.length} รายการ</b><span class="small">ดำเนินการภายใน 30 วันตาม PDPA: ลบผู้ใช้ใน Supabase Dashboard → Authentication → Users ข้อมูลที่เชื่อมกันจะถูกลบตาม</span></div>` : ''}
   <p class="small muted">${S.settings.require_verification === 'true' ? 'เปิดกฎยืนยันสิทธิ์อยู่: ผู้ใช้ที่ยังไม่ยืนยันจองคิวไม่ได้' : 'กฎยืนยันสิทธิ์ปิดอยู่ (เปิดได้ที่หน้าตั้งค่า)'}</p>
-  <div class="tw" tabindex="0"><table><thead><tr><th scope="col">ชื่อ</th><th scope="col">อำเภอ / เขต</th><th scope="col">เบอร์โทร</th><th scope="col">สถานะ</th><th scope="col"><span class="sr">การดำเนินการ</span></th></tr></thead><tbody>
+  <h2>เจ้าหน้าที่</h2><div class="tw" tabindex="0"><table><thead><tr><th scope="col">ชื่อ</th><th scope="col">บทบาท</th><th scope="col"><span class="sr">การดำเนินการ</span></th></tr></thead><tbody>
+  ${staff.map(u => `<tr><td>${esc(u.full_name)}</td><td>${ROLE[u.role]}</td><td>${u.id === S.me.id ? '<span class="small muted">บัญชีของคุณ</span>' : `<div class="row">${u.role === 'tech' ? roleBtn(u, 'admin', 'ตั้งเป็นแอดมิน') : roleBtn(u, 'tech', 'ตั้งเป็นช่าง')}${roleBtn(u, 'citizen', 'ถอดสิทธิ์เจ้าหน้าที่')}</div>`}</td></tr>`).join('')}</tbody></table></div>
+  <h2>ประชาชน</h2><div class="tw" tabindex="0"><table><thead><tr><th scope="col">ชื่อ</th><th scope="col">อำเภอ / เขต</th><th scope="col">เบอร์โทร</th><th scope="col">สถานะ</th><th scope="col"><span class="sr">การดำเนินการ</span></th></tr></thead><tbody>
   ${cit.map(u => `<tr><td>${esc(u.full_name)}</td><td>${esc(u.district || '-')}</td><td class="mono">${esc(S.phones[u.id] || '-')}</td><td>${u.verified ? chip(['ยืนยันแล้ว','ok']) : chip(['ยังไม่ยืนยัน','warn'])}${u.noshow_count >= NOSHOW_LIMIT ? ' ' + chip(['พักสิทธิ์','bad']) : ''}${req.some(x => x.user_id === u.id) ? ' ' + chip(['ขอลบข้อมูล','bad']) : ''}</td>
-  <td><div class="row"><button type="button" class="btn sm" data-a="verify" data-id="${u.id}" data-v="${u.verified ? '0' : '1'}">${u.verified ? 'ยกเลิกยืนยัน' : 'ยืนยันสิทธิ์'}</button>${u.noshow_count >= NOSHOW_LIMIT ? `<button type="button" class="btn sm" data-a="resetNoshow" data-id="${u.id}">คืนสิทธิ์จอง</button>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="5" class="muted">ยังไม่มีผู้ใช้</td></tr>'}</tbody></table></div>`; }
+  <td><div class="row"><button type="button" class="btn sm" data-a="verify" data-id="${u.id}" data-v="${u.verified ? '0' : '1'}">${u.verified ? 'ยกเลิกยืนยัน' : 'ยืนยันสิทธิ์'}</button>${u.noshow_count >= NOSHOW_LIMIT ? `<button type="button" class="btn sm" data-a="resetNoshow" data-id="${u.id}">คืนสิทธิ์จอง</button>` : ''}${roleBtn(u, 'tech', 'ตั้งเป็นช่าง')}</div></td></tr>`).join('') || '<tr><td colspan="5" class="muted">ยังไม่มีผู้ใช้</td></tr>'}</tbody></table></div>`; }
 function aStock(){ return `<h1 tabindex="-1">อุปกรณ์และอะไหล่</h1><h2>เครื่องมือ</h2><div class="tw" tabindex="0"><table><thead><tr><th scope="col">เครื่องมือ</th><th class="num" scope="col">ทั้งหมด</th><th class="num" scope="col">ซ่อมบำรุง</th><th class="num" scope="col">พร้อมจอง</th><th scope="col"><span class="sr">การดำเนินการ</span></th></tr></thead><tbody>
   ${S.tools.map(t => `<tr><td>${esc(t.name)}</td><td class="num">${t.qty}</td><td class="num">${t.maint}</td><td class="num">${t.qty - t.maint}</td><td><button type="button" class="btn sm" data-a="maint" data-id="${t.id}" data-v="1" ${t.maint >= t.qty ? 'disabled' : ''}>ส่งซ่อมบำรุง</button> <button type="button" class="btn sm" data-a="maint" data-id="${t.id}" data-v="-1" ${t.maint ? '' : 'disabled'}>กลับมาใช้</button></td></tr>`).join('')}</tbody></table></div>
   <p class="small muted">จำนวนที่ถูกจองคิดแยกตามช่วงเวลา จึงจองล่วงหน้าได้แม้ตอนนี้มีคนใช้อยู่</p>
@@ -428,6 +442,13 @@ const A = {
     S.busy = false; if (error) return toast(error.message);
     if (!data.session) S.auth = {mode:'login', email:a.email, msg:'ลงทะเบียนแล้ว เปิดอีเมลเพื่อยืนยันบัญชี จากนั้นกลับมาเข้าสู่ระบบ'}; },
   async logout(){ await sb.auth.signOut(); },
+  async forgot(){ const em = (S.auth.email || '').trim(); if (!em) return toast('กรอกอีเมล');
+    S.busy = true; render(); const {error} = await sb.auth.resetPasswordForEmail(em, {redirectTo:location.origin + location.pathname}); S.busy = false;
+    if (error) return toast(error.message); S.auth.msg = 'ถ้าอีเมลนี้ลงทะเบียนไว้ ระบบส่งลิงก์ตั้งรหัสผ่านใหม่ให้แล้ว ตรวจกล่องจดหมาย (รวมถึงจดหมายขยะ)'; },
+  async newpw(){ const pw = S.recovery_pw || ''; if (pw.length < 8) return toast('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร');
+    S.busy = true; render(); const {error} = await sb.auth.updateUser({password:pw}); S.busy = false;
+    if (error) return toast(error.message); S.recovery = false; S.recovery_pw = ''; toast('ตั้งรหัสผ่านใหม่แล้ว'); },
+  async setRole(e){ const k = e.id + e.r; if (S.d.rc !== k){ S.d.rc = k; return; } await rpc('set_role', {p_user:e.id, p_role:e.r}); await refresh(); S.d = {}; toast('เปลี่ยนบทบาทแล้ว'); },
   tab(e){ S.tab = e.id; S.view = null; S.d = {}; if (e.id === 'me') markRead(); },
   go(e){ go(e.n, e.id); }, back(){ S.view = null; S.d = {}; },
   newTriage(e){ go('triage'); S.d = {step:1, deviceId:mine('devices')[0]?.id || 'new', type:TYPES[0], brand:'', model:'', year:'', warranty:'ไม่ทราบ', photos:{}, syms:[], detail:'', since:'', dropped:'ไม่เคย', direct:!!e.direct}; },
@@ -553,7 +574,8 @@ let lastViewKey = '';
 function render(){
   const main = $('#main'), user = $('#user'), tabs = $('#tabs');
   if (!S.ready){ main.innerHTML = `<p class="muted" role="status">กำลังโหลด…</p>`; return; }
-  if (!S.session || !S.me){ user.innerHTML = ''; tabs.innerHTML = ''; $('nav.tabs').hidden = true; main.innerHTML = vAuth(); }
+  if (S.recovery && S.session){ user.innerHTML = ''; tabs.innerHTML = ''; $('nav.tabs').hidden = true; main.innerHTML = vNewPw(); }
+  else if (!S.session || !S.me){ user.innerHTML = ''; tabs.innerHTML = ''; $('nav.tabs').hidden = true; main.innerHTML = vAuth(); }
   else {
     $('nav.tabs').hidden = false;
     user.innerHTML = `<span class="small"><b>${esc(S.me.full_name || S.session.user.email)}</b> · ${ROLE[role()]}</span><button type="button" class="btn sm" data-a="logout">ออกจากระบบ</button>`;
@@ -572,7 +594,11 @@ async function act(el){
   render(); if (nav) window.scrollTo(0, 0);
 }
 document.addEventListener('click', e => { const el = e.target.closest('[data-a]'); if (!el || el.disabled) return; act(el); });
-document.addEventListener('submit', e => { if (e.target.id === 'auth-form'){ e.preventDefault(); (S.auth.mode === 'signup' ? A.signup() : A.signin()).catch(fail).finally(render); } });
+document.addEventListener('submit', e => {
+  if (e.target.id === 'auth-form'){ e.preventDefault(); (S.auth.mode === 'signup' ? A.signup() : A.signin()).catch(fail).finally(render); }
+  if (e.target.id === 'forgot-form'){ e.preventDefault(); A.forgot().catch(fail).finally(render); }
+  if (e.target.id === 'newpw-form'){ e.preventDefault(); S.recovery_pw = $('#np-pw').value; A.newpw().catch(fail).finally(render); }
+});
 document.addEventListener('input', e => { const el = e.target; if (!el.dataset.m) return; const tgt = S.session && S.me ? S.d : S.auth; tgt[el.dataset.m] = el.type === 'checkbox' ? el.checked : el.value; });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.dataset.enter){ e.preventDefault(); act({dataset:{...e.target.dataset, a:e.target.dataset.enter}}).then(() => $('#' + e.target.id)?.focus()); } });
 document.addEventListener('change', async e => { const el = e.target; if (!el.dataset.ph || !el.files[0]) return;
@@ -587,6 +613,7 @@ setInterval(async () => {
 }, 20000);
 
 sb.auth.onAuthStateChange((event, session) => {
+  if (event === 'PASSWORD_RECOVERY') S.recovery = true;
   setTimeout(async () => {
     const changed = (S.session?.user.id) !== (session?.user.id);
     S.session = session;
