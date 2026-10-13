@@ -31,6 +31,27 @@ const TABS = {
   admin:[['dash','ภาพรวม'],['jobs','หน้างาน'],['sched','คิว'],['users','ผู้ใช้'],['stock','คลัง'],['pay','งบ'],['log','ตั้งค่า']]
 };
 
+/* ---------- ไอคอนเส้น 24px (วาดเอง) ---------- */
+const IP = {
+  home:'<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/>',
+  devices:'<path d="M9 2v5M15 2v5"/><path d="M6 7h12v4a6 6 0 0 1-12 0z"/><path d="M12 17v5"/>',
+  cases:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  kb:'<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5"/><path d="M8 7h7"/>',
+  me:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  queue:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2"/><path d="M9 10h6M9 14h6M9 18h3"/>',
+  jobs:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>',
+  dash:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  sched:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  users:'<circle cx="9" cy="8" r="3.5"/><path d="M2 20a7 7 0 0 1 14 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M22 20a7 7 0 0 0-4-6.3"/>',
+  stock:'<path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/>',
+  pay:'<rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20"/><path d="M16 15h2"/>',
+  log:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3.1 14H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 3.1V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"/>',
+  logout:'<path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4"/><path d="M10 17l5-5-5-5M15 12H3"/>',
+  scan:'<path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M7 12h10"/>',
+  cal:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="m9 15 2 2 4-4"/>'
+};
+const ico = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${IP[k] || ''}</svg>`;
+
 /* ---------- สถานะของหน้า ---------- */
 let S = {ready:false, session:null, me:null, tab:'home', view:null, d:{}, busy:false, auth:{mode:'login'}, photoUrls:{}};
 const blank = () => ({phones:{},requests:[],users:[],techs:[],stations:[],tools:[],parts:[],slots:[],kb:[],settings:{},devices:[],cases:[],assessments:[],chats:[],bookings:[],results:[],reviews:[],notifs:[],log:[]});
@@ -113,7 +134,7 @@ function vAuth(){
   ${a.msg ? `<div class="banner info" role="status">${esc(a.msg)}</div>` : ''}
   <div><button type="button" class="link" data-a="authMode" data-id="login">← กลับไปเข้าสู่ระบบ</button></div></div>`;
   return `<div class="stack" style="max-width:440px;margin-inline:auto;width:100%">
-  <div><p class="eyebrow">${ORG} · บริการสาธารณะ ไม่มีค่าใช้จ่าย</p><h1 tabindex="-1">${signup ? 'ลงทะเบียนใช้บริการ' : 'เข้าสู่ระบบ'}</h1></div>
+  <div class="hero"><span class="pill">บริการสาธารณะ · ฟรี</span><h1 tabindex="-1">${signup ? 'ลงทะเบียนใช้บริการ' : 'ซ่อมเครื่องใช้ไฟฟ้า ฟรี ใกล้บ้าน'}</h1><p class="muted">${signup ? 'สร้างบัญชีเพื่อส่งอาการและจองคิวซ่อม' : 'ส่งรูปให้ช่างดูก่อน จองโต๊ะซ่อม แล้วเช็กอินด้วย QR'} · ${ORG}</p></div>
   <div class="seg" role="group" aria-label="เลือกหน้า"><button type="button" data-a="authMode" data-id="login" aria-pressed="${!signup}">เข้าสู่ระบบ</button><button type="button" data-a="authMode" data-id="signup" aria-pressed="${signup}">ลงทะเบียน</button></div>
   <form class="card" id="auth-form" novalidate>
     ${signup ? `<label class="f">ชื่อ–นามสกุล<input id="au-name" data-m="name" autocomplete="name" required value="${esc(a.name)}"></label>
@@ -160,8 +181,8 @@ function vHome(){
   <div class="banner info small"><b>บริการสาธารณะ ไม่มีค่าใช้จ่าย</b><span>โต๊ะ เครื่องมือ คำแนะนำจากช่าง และอะไหล่พื้นฐานของศูนย์ ให้บริการฟรีสำหรับประชาชนในพื้นที่ ดำเนินการโดยหน่วยงานท้องถิ่น (ตัวอย่าง)</span></div>
   ${S.settings.require_verification === 'true' && !S.me.verified ? `<div class="banner warn" role="status"><b>ยังไม่ได้ยืนยันสิทธิ์คนในพื้นที่</b><span class="small">แจ้งอาการได้ตามปกติ แต่ต้องยืนยันสิทธิ์ก่อนจองคิว นำบัตรประชาชนไปที่เคาน์เตอร์ศูนย์</span></div>` : ''}
   ${S.me.noshow_count >= NOSHOW_LIMIT ? `<div class="banner bad" role="alert"><b>สิทธิ์การจองถูกพักไว้</b><span class="small">ไม่มาตามนัดครบ ${NOSHOW_LIMIT} ครั้ง ติดต่อเจ้าหน้าที่ศูนย์เพื่อขอคืนสิทธิ์</span></div>` : ''}
-  <div class="big"><button type="button" class="pri" data-a="newTriage"><b>ตรวจเบื้องต้น</b><span class="small">ส่งรูปและอาการให้ช่างประเมินออนไลน์</span></button>
-  <button type="button" data-a="go" data-n="pickCase"><b>จองซ่อม</b><span class="small muted">เลือกวัน เวลา โต๊ะ และอุปกรณ์</span></button></div>
+  <div class="big"><button type="button" class="pri" data-a="newTriage"><span class="ico">${ico('scan')}</span><b>ตรวจเบื้องต้น</b><span class="small">ส่งรูปและอาการให้ช่างประเมินออนไลน์</span></button>
+  <button type="button" data-a="go" data-n="pickCase"><span class="ico">${ico('cal')}</span><b>จองซ่อม</b><span class="small muted">เลือกวัน เวลา โต๊ะ และอุปกรณ์</span></button></div>
   <h2>คิวของฉัน</h2>${qs.length ? qs.map(bookingCard).join('') : `<p class="muted small">ยังไม่มีคิว จองได้ฟรีจากเคสที่ประเมินแล้ว</p>`}
   <h2>เคสที่รอดำเนินการ</h2>${cs.length ? cs.map(caseCard).join('') : `<p class="muted small">ไม่มีเคสค้าง</p>`}
   <h2>เคล็ดลับ</h2>${S.kb.filter(k => k.type === 'ทั่วไป').map(kbCard).join('')}`;
@@ -578,10 +599,11 @@ function render(){
   else if (!S.session || !S.me){ user.innerHTML = ''; tabs.innerHTML = ''; $('nav.tabs').hidden = true; main.innerHTML = vAuth(); }
   else {
     $('nav.tabs').hidden = false;
-    user.innerHTML = `<span class="small"><b>${esc(S.me.full_name || S.session.user.email)}</b> · ${ROLE[role()]}</span><button type="button" class="btn sm" data-a="logout">ออกจากระบบ</button>`;
+    const nm = S.me.full_name || S.session.user.email;
+    user.innerHTML = `<div class="who"><span class="avatar" aria-hidden="true">${esc([...nm][0] || '?')}</span><span class="stack" style="gap:0;min-width:0"><span class="nm">${esc(nm)}</span><span class="rl">${ROLE[role()]}</span></span></div><button type="button" class="icon-btn" data-a="logout" aria-label="ออกจากระบบ" title="ออกจากระบบ">${ico('logout')}</button>`;
     main.innerHTML = role() === 'citizen' ? citizenView() : role() === 'tech' ? techView() : adminView();
     const unread = S.notifs.filter(n => !n.read).length;
-    tabs.innerHTML = TABS[role()].map(([k, t]) => `<button type="button" data-a="tab" data-id="${k}" ${!S.view && S.tab === k ? 'aria-current="page"' : ''}>${t}${k === 'me' && unread ? ` <span class="badge" aria-label="แจ้งเตือนใหม่ ${unread} รายการ">${unread}</span>` : ''}</button>`).join('');
+    tabs.innerHTML = TABS[role()].map(([k, t]) => `<button type="button" data-a="tab" data-id="${k}" ${!S.view && S.tab === k ? 'aria-current="page"' : ''}>${ico(k)}<span class="t">${t}</span>${k === 'me' && unread ? `<span class="badge"><span aria-hidden="true">${unread}</span><span class="sr">แจ้งเตือนใหม่ ${unread} รายการ</span></span>` : ''}</button>`).join('');
   }
   document.querySelectorAll('[data-qr]').forEach(el => { try { const q = qrcode(0, 'M'); q.addData(el.dataset.qr); q.make(); el.innerHTML = q.createSvgTag({cellSize:4, margin:0, scalable:true}); } catch (e) { el.hidden = true; } });
   const cl = $('#chatlog'); if (cl) cl.scrollTop = cl.scrollHeight;
