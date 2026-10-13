@@ -28,12 +28,12 @@ const TLI = {waiting:1,needinfo:1,assessed:2,booked:3,checkedin:4,repairing:5,do
 const TABS = {
   citizen:[['home','หน้าแรก'],['devices','เครื่องของฉัน'],['cases','ประวัติ'],['kb','ความรู้'],['me','โปรไฟล์']],
   tech:[['queue','คิวประเมิน'],['jobs','งานหน้างาน'],['me','โปรไฟล์']],
-  admin:[['dash','แดชบอร์ด'],['jobs','หน้างาน'],['sched','คิว'],['stock','คลัง'],['pay','งบ'],['log','บันทึก']]
+  admin:[['dash','ภาพรวม'],['jobs','หน้างาน'],['sched','คิว'],['users','ผู้ใช้'],['stock','คลัง'],['pay','งบ'],['log','ตั้งค่า']]
 };
 
 /* ---------- สถานะของหน้า ---------- */
 let S = {ready:false, session:null, me:null, tab:'home', view:null, d:{}, busy:false, auth:{mode:'login'}, photoUrls:{}};
-const blank = () => ({users:[],techs:[],stations:[],tools:[],parts:[],slots:[],kb:[],settings:{},devices:[],cases:[],assessments:[],chats:[],bookings:[],results:[],reviews:[],notifs:[],log:[]});
+const blank = () => ({phones:{},requests:[],users:[],techs:[],stations:[],tools:[],parts:[],slots:[],kb:[],settings:{},devices:[],cases:[],assessments:[],chats:[],bookings:[],results:[],reviews:[],notifs:[],log:[]});
 Object.assign(S, blank());
 const by = (l, id) => S[l].find(x => x.id === id);
 const role = () => S.me?.role || 'citizen';
@@ -57,9 +57,10 @@ const fail = e => { toast(e?.message || String(e)); };
 async function q(p){ const {data, error} = await p; if (error) throw error; return data || []; }
 async function loadAll(){
   const uid = S.session.user.id;
-  const [me] = await q(sb.from('profiles').select('*').eq('id', uid));
+  const [me] = await q(sb.from('profiles').select('id,full_name,district,role,noshow_count,verified,created_at').eq('id', uid));
   S.me = me || null;
   if (!S.me) return;
+  const [ct] = await q(sb.from('contacts').select('phone').eq('user_id', uid)); S.me.phone = ct?.phone || '';
   const staff = isStaff(), admin = role() === 'admin';
   const R = await Promise.all([
     q(sb.from('technicians').select('*')), q(sb.from('stations').select('*').order('id')), q(sb.from('tools').select('*').order('id')),
@@ -70,10 +71,13 @@ async function loadAll(){
     q(sb.from('chats').select('*').order('created_at')), q(sb.from('bookings').select('*').order('created_at')), q(sb.from('booking_tools').select('*')),
     q(sb.from('booking_parts').select('*')), q(sb.from('repair_results').select('*')), q(sb.from('reviews').select('*')),
     q(sb.from('notifications').select('*').order('created_at', {ascending:false}).limit(50)),
-    staff ? q(sb.from('profiles').select('id,full_name,role,noshow_count,district')) : Promise.resolve([]),
-    admin ? q(sb.from('audit_log').select('*').order('created_at', {ascending:false}).limit(300)) : Promise.resolve([])
+    staff ? q(sb.from('profiles').select('id,full_name,district,role,noshow_count,verified,created_at')) : Promise.resolve([]),
+    admin ? q(sb.from('audit_log').select('*').order('created_at', {ascending:false}).limit(300)) : Promise.resolve([]),
+    admin ? q(sb.from('contacts').select('*')) : Promise.resolve([]),
+    q(sb.from('data_requests').select('*').order('created_at', {ascending:false}))
   ]);
-  const [techs, stations, tools, parts, slots, kb, settings, devices, hist, cases, photos, ass, aparts, atools, akb, chats, bookings, btools, bparts, results, reviews, notifs, users, log] = R;
+  const [techs, stations, tools, parts, slots, kb, settings, devices, hist, cases, photos, ass, aparts, atools, akb, chats, bookings, btools, bparts, results, reviews, notifs, users, log, contacts, requests] = R;
+  S.phones = Object.fromEntries(contacts.map(c => [c.user_id, c.phone])); S.requests = requests;
   Object.assign(S, {
     techs, stations, tools, parts: parts.map(p => ({...p, value:Number(p.value)})), slots: slots.map(s => hm(s.slot)),
     kb: kb.map(k => ({id:k.id, type:k.device_type, sym:k.symptom, title:k.title, fix:k.steps})),
@@ -115,6 +119,7 @@ function vAuth(){
     <button class="btn pri" type="submit" ${S.busy ? 'disabled' : ''}>${S.busy ? 'กำลังดำเนินการ…' : signup ? 'ลงทะเบียน' : 'เข้าสู่ระบบ'}</button>
   </form>
   ${a.msg ? `<div class="banner info" role="status">${esc(a.msg)}</div>` : ''}
+  ${S.pub ? `<div class="card"><h2>ผลงานของศูนย์</h2><div class="stat"><div><b>${S.pub.done}</b><span class="small muted">งานซ่อมที่จบ</span></div><div><b>${S.pub.done ? Math.round(S.pub.ok / S.pub.done * 100) + '%' : '–'}</b><span class="small muted">ซ่อมสำเร็จ</span></div><div><b>${Number(S.pub.kg).toFixed(1)} กก.</b><span class="small muted">ขยะอิเล็กทรอนิกส์ที่ลดได้</span></div><div><b>${baht(S.pub.value)}</b><span class="small muted">มูลค่าอะไหล่ที่ประชาชนไม่ต้องจ่าย</span></div></div></div>` : ''}
   ${signup ? '' : `<div class="card"><h2>บัญชีทดลอง</h2><p class="small muted">สำหรับสาธิตเท่านั้น รหัสผ่านทุกบัญชี <span class="mono">ReSpace#Demo2026</span></p>
   <div class="opt">${DEMO.map(([e,t]) => `<button type="button" data-a="demoLogin" data-id="${e}">${t}</button>`).join('')}</div></div>`}
   </div>`;
@@ -142,6 +147,7 @@ function vHome(){
   const qs = mine('bookings').filter(live), cs = mine('cases').filter(c => ['assessed','needinfo','waiting'].includes(c.status) && !liveB(c.id));
   return `<div><p class="eyebrow">${ORG}</p><h1 tabindex="-1">สวัสดี คุณ${esc(S.me.full_name || '')}</h1></div>
   <div class="banner info small"><b>บริการสาธารณะ ไม่มีค่าใช้จ่าย</b><span>โต๊ะ เครื่องมือ คำแนะนำจากช่าง และอะไหล่พื้นฐานของศูนย์ ให้บริการฟรีสำหรับประชาชนในพื้นที่ ดำเนินการโดยหน่วยงานท้องถิ่น (ตัวอย่าง)</span></div>
+  ${S.settings.require_verification === 'true' && !S.me.verified ? `<div class="banner warn" role="status"><b>ยังไม่ได้ยืนยันสิทธิ์คนในพื้นที่</b><span class="small">แจ้งอาการได้ตามปกติ แต่ต้องยืนยันสิทธิ์ก่อนจองคิว นำบัตรประชาชนไปที่เคาน์เตอร์ศูนย์</span></div>` : ''}
   ${S.me.noshow_count >= NOSHOW_LIMIT ? `<div class="banner bad" role="alert"><b>สิทธิ์การจองถูกพักไว้</b><span class="small">ไม่มาตามนัดครบ ${NOSHOW_LIMIT} ครั้ง ติดต่อเจ้าหน้าที่ศูนย์เพื่อขอคืนสิทธิ์</span></div>` : ''}
   <div class="big"><button type="button" class="pri" data-a="newTriage"><b>ตรวจเบื้องต้น</b><span class="small">ส่งรูปและอาการให้ช่างประเมินออนไลน์</span></button>
   <button type="button" data-a="go" data-n="pickCase"><b>จองซ่อม</b><span class="small muted">เลือกวัน เวลา โต๊ะ และอุปกรณ์</span></button></div>
@@ -178,6 +184,8 @@ function vMe(){ const u = S.me, d = S.d;
   <label class="f">เบอร์โทร<input id="me-phone" data-m="phone" type="tel" value="${esc(d.phone ?? u.phone)}"></label>
   <label class="f">อำเภอ / เขต<input id="me-district" data-m="district" value="${esc(d.district ?? u.district)}"></label></div>
   <div><button type="button" class="btn sm" data-a="saveProfile">บันทึกโปรไฟล์</button></div></div>
+  ${u.role === 'citizen' ? `<div class="card"><h2>ข้อมูลส่วนบุคคล</h2><p class="small muted">ศูนย์เก็บชื่อ เบอร์โทร อำเภอ ภาพเครื่อง และแชต เพื่อให้บริการซ่อมเท่านั้น เบอร์โทรเห็นได้เฉพาะคุณและแอดมิน</p>
+  ${S.requests.some(x => x.status === 'pending') ? `<p class="small">${chip(['ส่งคำขอลบแล้ว','warn'])} เจ้าหน้าที่จะลบบัญชีและข้อมูลทั้งหมดภายใน 30 วัน</p>` : `<div><button type="button" class="btn sm danger" data-a="requestDeletion">${S.d.del === 1 ? 'กดอีกครั้งเพื่อยืนยันคำขอลบ' : 'ขอลบบัญชีและข้อมูลทั้งหมด'}</button></div>`}</div>` : ''}
   <h2>แจ้งเตือน</h2>${S.notifs.map(x => `<div class="card"><p>${x.read ? '' : chip(['ใหม่','acc']) + ' '}${esc(x.body)}</p><span class="small muted">${ftime(x.created_at)}</span></div>`).join('') || `<p class="small muted">ยังไม่มีแจ้งเตือน</p>`}`; }
 
 /* ----- ตรวจเบื้องต้น ----- */
@@ -349,7 +357,7 @@ function vJob(v){ const b = by('bookings', v.id), c = by('cases', b.caseId), a =
 
 /* ================= มุมมองแอดมิน ================= */
 function adminView(){ const v = S.view; if (v && v.n === 'job') return back() + vJob(v); if (v && v.n === 'case') return back() + vCase(v);
-  return ({dash:aDash, jobs:vJobs, sched:aSched, stock:aStock, pay:aPay, log:aLog}[S.tab] || aDash)(); }
+  return ({dash:aDash, jobs:vJobs, sched:aSched, users:aUsers, stock:aStock, pay:aPay, log:aLog}[S.tab] || aDash)(); }
 function aDash(){ const today = dkey(new Date()), done = S.results, ok = done.filter(r => r.res === 'ok');
   const kg = ok.reduce((s, r) => { const b = by('bookings', r.bookingId), c = b && by('cases', b.caseId), d = c && by('devices', c.deviceId); return s + (d ? KG[d.type] || 0 : 0); }, 0);
   const avg = S.reviews.length ? (S.reviews.reduce((s, r) => s + r.stars, 0) / S.reviews.length).toFixed(1) : '–';
@@ -368,6 +376,13 @@ function aSched(){ const ds = days().slice(0, 3), act = S.bookings.filter(live);
   return `<h1 tabindex="-1">ตารางคิว</h1>${ds.map(k => `<h2>${fdate(k)}</h2><div class="tw" tabindex="0"><table><caption class="small muted" style="text-align:left">คิวรายโต๊ะ ${fdate(k)}</caption><thead><tr><th scope="col">เวลา</th>${S.stations.map(s => `<th scope="col">${s.id}</th>`).join('')}</tr></thead><tbody>
   ${S.slots.map(s => `<tr><th scope="row">${s}</th>${S.stations.map(st => { const b = act.find(x => x.date === k && x.slot === s && x.stationId === st.id); return `<td>${b ? `<span class="chip ${BSTAT[b.status][1]}">${b.id}</span>` : '<span class="muted">ว่าง</span>'}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`).join('')}
   <h2>การจองทั้งหมด</h2><div class="tw" tabindex="0"><table><thead><tr><th scope="col">รหัส</th><th scope="col">นัด</th><th scope="col">ผู้รับบริการ</th><th scope="col">สถานะ</th><th scope="col"><span class="sr">การดำเนินการ</span></th></tr></thead><tbody>${S.bookings.slice().reverse().map(b => `<tr><td class="mono">${b.id}</td><td>${fdate(b.date)} ${b.slot}</td><td>${esc(userName(b.userId))}</td><td>${chip(BSTAT[b.status])}</td><td>${b.status === 'confirmed' ? `<button type="button" class="btn sm" data-a="noshow" data-id="${b.id}">${S.d.ns === b.id ? 'กดอีกครั้งเพื่อยืนยัน' : 'ไม่มาตามนัด'}</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">ยังไม่มีการจอง</td></tr>'}</tbody></table></div>`; }
+function aUsers(){ const req = S.requests.filter(x => x.status === 'pending'), cit = S.users.filter(u => u.role === 'citizen').sort((a, b) => (a.verified - b.verified) || a.full_name.localeCompare(b.full_name));
+  return `<h1 tabindex="-1">ผู้ใช้</h1>
+  ${req.length ? `<div class="banner warn"><b>คำขอลบบัญชีและข้อมูล ${req.length} รายการ</b><span class="small">ดำเนินการภายใน 30 วันตาม PDPA: ลบผู้ใช้ใน Supabase Dashboard → Authentication → Users ข้อมูลที่เชื่อมกันจะถูกลบตาม</span></div>` : ''}
+  <p class="small muted">${S.settings.require_verification === 'true' ? 'เปิดกฎยืนยันสิทธิ์อยู่: ผู้ใช้ที่ยังไม่ยืนยันจองคิวไม่ได้' : 'กฎยืนยันสิทธิ์ปิดอยู่ (เปิดได้ที่หน้าตั้งค่า)'}</p>
+  <div class="tw" tabindex="0"><table><thead><tr><th scope="col">ชื่อ</th><th scope="col">อำเภอ / เขต</th><th scope="col">เบอร์โทร</th><th scope="col">สถานะ</th><th scope="col"><span class="sr">การดำเนินการ</span></th></tr></thead><tbody>
+  ${cit.map(u => `<tr><td>${esc(u.full_name)}</td><td>${esc(u.district || '-')}</td><td class="mono">${esc(S.phones[u.id] || '-')}</td><td>${u.verified ? chip(['ยืนยันแล้ว','ok']) : chip(['ยังไม่ยืนยัน','warn'])}${u.noshow_count >= NOSHOW_LIMIT ? ' ' + chip(['พักสิทธิ์','bad']) : ''}${req.some(x => x.user_id === u.id) ? ' ' + chip(['ขอลบข้อมูล','bad']) : ''}</td>
+  <td><div class="row"><button type="button" class="btn sm" data-a="verify" data-id="${u.id}" data-v="${u.verified ? '0' : '1'}">${u.verified ? 'ยกเลิกยืนยัน' : 'ยืนยันสิทธิ์'}</button>${u.noshow_count >= NOSHOW_LIMIT ? `<button type="button" class="btn sm" data-a="resetNoshow" data-id="${u.id}">คืนสิทธิ์จอง</button>` : ''}</div></td></tr>`).join('') || '<tr><td colspan="5" class="muted">ยังไม่มีผู้ใช้</td></tr>'}</tbody></table></div>`; }
 function aStock(){ return `<h1 tabindex="-1">อุปกรณ์และอะไหล่</h1><h2>เครื่องมือ</h2><div class="tw" tabindex="0"><table><thead><tr><th scope="col">เครื่องมือ</th><th class="num" scope="col">ทั้งหมด</th><th class="num" scope="col">ซ่อมบำรุง</th><th class="num" scope="col">พร้อมจอง</th><th scope="col"><span class="sr">การดำเนินการ</span></th></tr></thead><tbody>
   ${S.tools.map(t => `<tr><td>${esc(t.name)}</td><td class="num">${t.qty}</td><td class="num">${t.maint}</td><td class="num">${t.qty - t.maint}</td><td><button type="button" class="btn sm" data-a="maint" data-id="${t.id}" data-v="1" ${t.maint >= t.qty ? 'disabled' : ''}>ส่งซ่อมบำรุง</button> <button type="button" class="btn sm" data-a="maint" data-id="${t.id}" data-v="-1" ${t.maint ? '' : 'disabled'}>กลับมาใช้</button></td></tr>`).join('')}</tbody></table></div>
   <p class="small muted">จำนวนที่ถูกจองคิดแยกตามช่วงเวลา จึงจองล่วงหน้าได้แม้ตอนนี้มีคนใช้อยู่</p>
@@ -378,9 +393,10 @@ function aPay(){ const bs = S.bookings.filter(b => b.billTotal != null);
   ${bs.map(b => `<tr><td class="mono">${b.id}</td><td>${fdate(b.date)}</td><td>${b.parts.filter(p => p.used && p.source !== 'own').map(p => esc(partName(p.partId)) + ' ×' + p.used).join(', ') || '-'}</td><td class="num">${b.billTotal}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">ยังไม่มีงานที่จบ</td></tr>'}
   <tr><th scope="row" colspan="3">รวม</th><th class="num">${bs.reduce((s, b) => s + b.billTotal, 0)}</th></tr></tbody></table></div>`; }
 function aLog(){ const early = S.settings.allow_early_checkin === 'true';
-  return `<h1 tabindex="-1">บันทึกและการตั้งค่า</h1>
-  <div class="card"><div class="row between"><div class="grow"><h3>อนุญาตเช็กอินก่อนวันนัด</h3><p class="small muted">เปิดไว้สำหรับทดลองระบบ ควรปิดก่อนเปิดให้บริการจริง</p></div><button type="button" class="btn sm" data-a="toggleEarly" aria-pressed="${early}">${early ? 'เปิดอยู่ · กดเพื่อปิด' : 'ปิดอยู่ · กดเพื่อเปิด'}</button></div></div>
-  <div class="tw" tabindex="0"><table><thead><tr><th scope="col">เวลา</th><th scope="col">ผู้ทำ</th><th scope="col">รายการ</th></tr></thead><tbody>${S.log.map(l => `<tr><td>${ftime(l.created_at)}</td><td>${esc(l.actor_name)}</td><td>${esc(l.action)}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">ยังไม่มีบันทึก</td></tr>'}</tbody></table></div>`; }
+  return `<h1 tabindex="-1">ตั้งค่าและบันทึก</h1>
+  <div class="card"><div class="row between"><div class="grow"><h2>อนุญาตเช็กอินก่อนวันนัด</h2><p class="small muted">เปิดไว้สำหรับทดลองระบบ ควรปิดก่อนเปิดให้บริการจริง</p></div><button type="button" class="btn sm" data-a="toggleEarly" aria-pressed="${early}">${early ? 'เปิดอยู่ · กดเพื่อปิด' : 'ปิดอยู่ · กดเพื่อเปิด'}</button></div></div>
+  <div class="card"><div class="row between"><div class="grow"><h2>ต้องยืนยันสิทธิ์คนในพื้นที่ก่อนจอง</h2><p class="small muted">เปิดเมื่อพร้อมให้เจ้าหน้าที่ตรวจบัตรประชาชน ยืนยันผู้ใช้ได้ที่หน้าผู้ใช้</p></div><button type="button" class="btn sm" data-a="toggleVerify" aria-pressed="${S.settings.require_verification === 'true'}">${S.settings.require_verification === 'true' ? 'เปิดอยู่ · กดเพื่อปิด' : 'ปิดอยู่ · กดเพื่อเปิด'}</button></div></div>
+  <h2>บันทึกการดำเนินการ</h2><div class="tw" tabindex="0"><table><thead><tr><th scope="col">เวลา</th><th scope="col">ผู้ทำ</th><th scope="col">รายการ</th></tr></thead><tbody>${S.log.map(l => `<tr><td>${ftime(l.created_at)}</td><td>${esc(l.actor_name)}</td><td>${esc(l.action)}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">ยังไม่มีบันทึก</td></tr>'}</tbody></table></div>`; }
 
 /* ================= การกระทำ ================= */
 const go = (n, id) => { S.view = {n, id}; S.d = {}; };
@@ -439,9 +455,11 @@ const A = {
     } finally { S.busy = false; } },
   async sendChat(e){ const i = $('#chat-in'), t = i.value.trim(); if (!t) return; i.value = '';
     const {error} = await sb.from('chats').insert({case_id:e.id, body:t}); if (error) throw error; await refresh(); },
-  async saveProfile(){ const d = S.d, patch = {}; ['full_name','phone','district'].forEach(k => { if (d[k] != null) patch[k] = d[k].trim(); });
-    if (!Object.keys(patch).length) return toast('ยังไม่มีการเปลี่ยนแปลง');
-    const {error} = await sb.from('profiles').update(patch).eq('id', S.me.id); if (error) throw error; await refresh(); S.d = {}; toast('บันทึกโปรไฟล์แล้ว'); },
+  async saveProfile(){ const d = S.d, patch = {}; ['full_name','district'].forEach(k => { if (d[k] != null) patch[k] = d[k].trim(); });
+    if (!Object.keys(patch).length && d.phone == null) return toast('ยังไม่มีการเปลี่ยนแปลง');
+    if (Object.keys(patch).length){ const {error} = await sb.from('profiles').update(patch).eq('id', S.me.id); if (error) throw error; }
+    if (d.phone != null){ const {error} = await sb.from('contacts').update({phone:d.phone.trim().slice(0, 20)}).eq('user_id', S.me.id); if (error) throw error; }
+    await refresh(); S.d = {}; toast('บันทึกโปรไฟล์แล้ว'); },
   /* ช่าง */
   openAssess(e){ go('assess', e.id); S.d = {level:'tech', cause:'', scope:'', minutes:'40', parts:[], tools:[], allowed:[]}; },
   aLevel(e){ S.d.level = e.id; },
@@ -497,6 +515,9 @@ const A = {
   async resetNoshow(e){ await rpc('reset_noshow', {p_user:e.id}); await refresh(); toast('คืนสิทธิ์แล้ว'); },
   async maint(e){ await rpc('set_tool_maint', {p_tool:e.id, p_delta:+e.v}); await refresh(); },
   async restock(e){ await rpc('restock_part', {p_part:e.id, p_qty:5}); await refresh(); toast('รับอะไหล่เข้าแล้ว'); },
+  async verify(e){ await rpc('set_verified', {p_user:e.id, p_value:e.v === '1'}); await refresh(); toast(e.v === '1' ? 'ยืนยันสิทธิ์แล้ว' : 'ยกเลิกการยืนยันแล้ว'); },
+  async toggleVerify(){ await rpc('set_setting', {p_key:'require_verification', p_value:S.settings.require_verification === 'true' ? 'false' : 'true'}); await refresh(); },
+  async requestDeletion(){ if (S.d.del !== 1){ S.d.del = 1; return; } await rpc('request_deletion', {}); await refresh(); S.d = {}; toast('ส่งคำขอลบข้อมูลแล้ว'); },
   async toggleEarly(){ await rpc('set_setting', {p_key:'allow_early_checkin', p_value:S.settings.allow_early_checkin === 'true' ? 'false' : 'true'}); await refresh(); }
 };
 /* ----- สแกน QR ด้วยกล้อง (ใช้ BarcodeDetector ถ้ามี ไม่มีใช้ jsQR) ----- */
@@ -569,7 +590,8 @@ sb.auth.onAuthStateChange((event, session) => {
   setTimeout(async () => {
     const changed = (S.session?.user.id) !== (session?.user.id);
     S.session = session;
-    if (!session){ Object.assign(S, blank(), {me:null, view:null, d:{}, tab:'home'}); S.ready = true; render(); return; }
+    if (!session){ Object.assign(S, blank(), {me:null, view:null, d:{}, tab:'home'}); S.ready = true; render();
+      sb.rpc('public_stats').then(({data}) => { if (data){ S.pub = data; if (!S.session) render(); } }); return; }
     if (changed || event === 'SIGNED_IN' || !S.me){
       try { await loadAll(); S.tab = TABS[role()][0][0]; S.view = null; S.d = {}; } catch (e) { fail(e); }
     }

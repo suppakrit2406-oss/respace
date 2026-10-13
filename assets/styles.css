@@ -117,3 +117,4 @@ summary{cursor:pointer;min-height:32px}
 .scan{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;padding:16px}
 .scan-in{display:flex;flex-direction:column;gap:12px;align-items:center;max-width:420px;width:100%;color:#fff}
 .scan video{width:100%;max-width:100%;border-radius:12px;background:#000;aspect-ratio:3/4;object-fit:cover}
+td.mono,td .btn{white-space:nowrap}
