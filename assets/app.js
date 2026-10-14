@@ -121,7 +121,13 @@ async function loadAll(){
     reviews: reviews.map(r => ({bookingId:r.booking_id, stars:r.stars, text:r.body})),
     notifs, users, log
   });
+  if (admin) await loadKpi();
 }
+function kpiRange(){ const now = new Date(), y = now.getFullYear(), m = now.getMonth();
+  if (S.kpiRange === 'all') return {p_from:null, p_to:null};
+  if (S.kpiRange === 'month') return {p_from:dkey(new Date(y, m, 1)), p_to:null};
+  return {p_from:dkey(new Date(m >= 9 ? y : y - 1, 9, 1)), p_to:null}; }
+async function loadKpi(){ try { S.kpi = await rpc('kpi_report', kpiRange()); } catch (e) { S.kpi = null; } }
 
 /* ================= หน้าเข้าสู่ระบบ / ลงทะเบียน ================= */
 const DEMO = [['citizen@respace.demo','ประชาชน (สมชาย)'],['wit@respace.demo','ช่าง (ช่างวิทย์)']];
@@ -390,20 +396,39 @@ function vJob(v){ const b = by('bookings', v.id), c = by('cases', b.caseId), a =
 /* ================= มุมมองแอดมิน ================= */
 function adminView(){ const v = S.view; if (v && v.n === 'job') return back() + vJob(v); if (v && v.n === 'case') return back() + vCase(v);
   return ({dash:aDash, jobs:vJobs, sched:aSched, users:aUsers, stock:aStock, pay:aPay, log:aLog}[S.tab] || aDash)(); }
-function aDash(){ const today = dkey(new Date()), done = S.results, ok = done.filter(r => r.res === 'ok');
-  const kg = ok.reduce((s, r) => { const b = by('bookings', r.bookingId), c = b && by('cases', b.caseId), d = c && by('devices', c.deviceId); return s + (d ? KG[d.type] || 0 : 0); }, 0);
-  const avg = S.reviews.length ? (S.reviews.reduce((s, r) => s + r.stars, 0) / S.reviews.length).toFixed(1) : '–';
-  const support = S.bookings.reduce((s, b) => s + (b.billTotal || 0), 0);
+function aDash(){ const today = dkey(new Date());
   const suspended = S.users.filter(u => u.noshow_count >= NOSHOW_LIMIT);
-  return `<div><p class="eyebrow">เจ้าหน้าที่ศูนย์</p><h1 tabindex="-1">แดชบอร์ด</h1></div><div class="stat">
+  return `<div><p class="eyebrow">เจ้าหน้าที่ศูนย์</p><h1 tabindex="-1">แดชบอร์ด</h1></div>${kpiSection()}<h2>วันนี้</h2><div class="stat">
   <div><b>${S.cases.filter(c => c.status === 'waiting').length}</b><span class="small muted">เคสรอประเมิน</span></div>
   <div><b>${S.bookings.filter(b => live(b) && b.date === today).length}</b><span class="small muted">คิววันนี้</span></div>
   <div><b>${S.bookings.filter(b => b.status === 'noshow').length}</b><span class="small muted">ไม่มาตามนัด</span></div>
   <div><b>${S.parts.filter(p => p.stock - p.reserved <= 1).length}</b><span class="small muted">อะไหล่ใกล้หมด</span></div></div>
-  <h2>รายงาน</h2><div class="stat"><div><b>${done.length}</b><span class="small muted">งานที่จบ</span></div><div><b>${done.length ? Math.round(ok.length / done.length * 100) + '%' : '–'}</b><span class="small muted">ซ่อมสำเร็จ</span></div>
-  <div><b>${kg.toFixed(1)} กก.</b><span class="small muted">ขยะอิเล็กทรอนิกส์ที่ลดได้ (ประมาณ)</span></div><div><b>${avg}</b><span class="small muted">คะแนนรีวิวเฉลี่ย</span></div><div><b>${baht(support)}</b><span class="small muted">มูลค่าอะไหล่ที่สนับสนุนประชาชน</span></div></div>
   ${suspended.length ? `<h2>ผู้ใช้ที่ถูกพักสิทธิ์</h2>${suspended.map(u => `<div class="card"><div class="row between"><span>${esc(u.full_name)} · ไม่มาตามนัด ${u.noshow_count} ครั้ง</span><button type="button" class="btn sm" data-a="resetNoshow" data-id="${u.id}">คืนสิทธิ์</button></div></div>`).join('')}` : ''}
   ${S.reviews.length ? `<h2>รีวิวล่าสุด</h2>` + S.reviews.slice(-5).reverse().map(r => `<div class="card"><p><span aria-label="${r.stars} ดาว">${'★'.repeat(r.stars)}</span> ${esc(r.text)}</p><span class="small muted mono">${r.bookingId}</span></div>`).join('') : ''}`; }
+const RANGES = [['fy','ปีงบนี้'],['month','เดือนนี้'],['all','ทั้งหมด']];
+function kpiBar(label, val, target, fmt, unit){ const pct = target ? Math.min(100, Math.round(val / target * 100)) : 0;
+  return `<div class="kpi"><div class="row between"><span class="small">${label}</span><span class="small muted">${pct}%</span></div>
+  <b>${fmt(val)}<span class="small muted"> / ${fmt(target)} ${unit}</span></b>
+  <div class="bar" role="progressbar" aria-label="${label}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-valuetext="${fmt(val)} จากเป้า ${fmt(target)} ${unit}"><i style="width:${pct}%"></i></div></div>`; }
+function kpiSection(){ const k = S.kpi, r = S.kpiRange || 'fy';
+  if (!k) return `<div class="banner warn small" role="status">โหลดตัวชี้วัดไม่สำเร็จ ลองรีเฟรชหน้า</div>`;
+  const t = k.targets || {}, n = x => Number(x || 0).toLocaleString('th-TH', {maximumFractionDigits:1});
+  return `<div class="row between"><h2>ตัวชี้วัดโครงการ</h2><button type="button" class="btn sm" data-a="exportKpi">ส่งออก CSV</button></div>
+  <div class="seg" role="group" aria-label="ช่วงเวลา">${RANGES.map(([k2, t2]) => `<button type="button" data-a="kpiRange" data-id="${k2}" aria-pressed="${r === k2}">${t2}</button>`).join('')}</div>
+  <p class="small muted">${fdate(k.from)} – ${fdate(k.to)} · เงินที่ประชาชนประหยัด = มูลค่าอะไหล่ + ค่าแรงมาตรฐาน ${n(k.labor_value)} บาท ต่องานที่ซ่อมสำเร็จ</p>
+  <div class="kpis">${kpiBar('ผู้ใช้งาน (บัญชีประชาชน)', k.citizens, t.kpi_users, n, 'คน')}
+  ${kpiBar('ประมาณการลดรายจ่ายประชาชน', k.savings, t.kpi_savings, n, 'บาท')}
+  ${kpiBar('ขยะอิเล็กทรอนิกส์ที่ลดได้', k.kg, t.kpi_kg, n, 'กก.')}
+  ${kpiBar('ความพึงพอใจเฉลี่ย', k.rating || 0, t.kpi_rating, x => Number(x || 0).toFixed(1), 'ดาว')}</div>
+  <p class="small muted">ช่วงนี้: ผู้ลงทะเบียนใหม่ ${n(k.citizens_new)} คน · ส่งเคส ${n(k.cases)} เคส · ซ่อมจบ ${n(k.repairs)} งาน (สำเร็จ ${n(k.ok)}) · รีวิว ${n(k.reviews)} รายการ${k.good_pct != null ? ` (พอใจ 4–5 ดาว ${k.good_pct}%)` : ''}</p>`; }
+function kpiCsv(){ const k = S.kpi, t = k.targets || {}, q2 = v => /[",\n]/.test(String(v ?? '')) ? `"${String(v).replace(/"/g, '""')}"` : String(v ?? '');
+  const rows = [['รายงานตัวชี้วัด ReSpace', ORG], ['ช่วงเวลา', k.from + ' ถึง ' + k.to], [],
+    ['ตัวชี้วัด','ผลลัพธ์','เป้าหมาย','หน่วย'], ['ผู้ใช้งาน (บัญชีประชาชน)', k.citizens, t.kpi_users, 'คน'],
+    ['ประมาณการลดรายจ่ายประชาชน', k.savings, t.kpi_savings, 'บาท'], ['ขยะอิเล็กทรอนิกส์ที่ลดได้', k.kg, t.kpi_kg, 'กก.'],
+    ['ความพึงพอใจเฉลี่ย', k.rating ?? '', t.kpi_rating, 'ดาว'], ['ค่าแรงมาตรฐานที่ใช้คำนวณ', k.labor_value, '', 'บาท/งาน'], [],
+    ['เดือน','เคสใหม่','ซ่อมจบ','ซ่อมสำเร็จ','ขยะที่ลดได้ (กก.)','ลดรายจ่าย (บาท)','รีวิว','คะแนนเฉลี่ย'],
+    ...(k.monthly || []).map(m => [m.month, m.cases, m.repairs, m.ok, m.kg, m.savings, m.reviews, m.rating ?? ''])];
+  return '﻿' + rows.map(r => r.map(q2).join(',')).join('\r\n'); }
 function aSched(){ const ds = days().slice(0, 3), act = S.bookings.filter(live);
   return `<h1 tabindex="-1">ตารางคิว</h1>${ds.map(k => `<h2>${fdate(k)}</h2><div class="tw" tabindex="0"><table><caption class="small muted" style="text-align:left">คิวรายโต๊ะ ${fdate(k)}</caption><thead><tr><th scope="col">เวลา</th>${S.stations.map(s => `<th scope="col">${s.id}</th>`).join('')}</tr></thead><tbody>
   ${S.slots.map(s => `<tr><th scope="row">${s}</th>${S.stations.map(st => { const b = act.find(x => x.date === k && x.slot === s && x.stationId === st.id); return `<td>${b ? `<span class="chip ${BSTAT[b.status][1]}">${b.id}</span>` : '<span class="muted">ว่าง</span>'}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`).join('')}
@@ -431,6 +456,9 @@ function aLog(){ const early = S.settings.allow_early_checkin === 'true';
   return `<h1 tabindex="-1">ตั้งค่าและบันทึก</h1>
   <div class="card"><div class="row between"><div class="grow"><h2>อนุญาตเช็กอินก่อนวันนัด</h2><p class="small muted">เปิดไว้สำหรับทดลองระบบ ควรปิดก่อนเปิดให้บริการจริง</p></div><button type="button" class="btn sm" data-a="toggleEarly" aria-pressed="${early}">${early ? 'เปิดอยู่ · กดเพื่อปิด' : 'ปิดอยู่ · กดเพื่อเปิด'}</button></div></div>
   <div class="card"><div class="row between"><div class="grow"><h2>ต้องยืนยันสิทธิ์คนในพื้นที่ก่อนจอง</h2><p class="small muted">เปิดเมื่อพร้อมให้เจ้าหน้าที่ตรวจบัตรประชาชน ยืนยันผู้ใช้ได้ที่หน้าผู้ใช้</p></div><button type="button" class="btn sm" data-a="toggleVerify" aria-pressed="${S.settings.require_verification === 'true'}">${S.settings.require_verification === 'true' ? 'เปิดอยู่ · กดเพื่อปิด' : 'ปิดอยู่ · กดเพื่อเปิด'}</button></div></div>
+  <div class="card"><h2>เป้าหมายและวิธีคำนวณตัวชี้วัด</h2><p class="small muted">ใช้ในแดชบอร์ดและรายงานที่ส่งออก ค่าเริ่มต้นตามแผนโครงการ</p>
+  <div class="grid2">${[['kpi_users','ผู้ใช้งาน (คน)'],['kpi_savings','ลดรายจ่ายประชาชน (บาท)'],['kpi_kg','ลดขยะ (กก.)'],['kpi_rating','ความพึงพอใจ (ดาว)'],['labor_value','ค่าแรงมาตรฐานต่องาน (บาท)']].map(([k, t]) => `<label class="f">${t}<input id="set-${k}" data-m="${k}" inputmode="decimal" value="${esc(S.d[k] ?? S.settings[k] ?? '')}"></label>`).join('')}</div>
+  <div><button type="button" class="btn pri sm" data-a="saveTargets">บันทึกเป้าหมาย</button></div></div>
   <h2>บันทึกการดำเนินการ</h2><div class="tw" tabindex="0"><table><thead><tr><th scope="col">เวลา</th><th scope="col">ผู้ทำ</th><th scope="col">รายการ</th></tr></thead><tbody>${S.log.map(l => `<tr><td>${ftime(l.created_at)}</td><td>${esc(l.actor_name)}</td><td>${esc(l.action)}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">ยังไม่มีบันทึก</td></tr>'}</tbody></table></div>`; }
 
 /* ================= การกระทำ ================= */
@@ -559,6 +587,13 @@ const A = {
   async restock(e){ await rpc('restock_part', {p_part:e.id, p_qty:5}); await refresh(); toast('รับอะไหล่เข้าแล้ว'); },
   async verify(e){ await rpc('set_verified', {p_user:e.id, p_value:e.v === '1'}); await refresh(); toast(e.v === '1' ? 'ยืนยันสิทธิ์แล้ว' : 'ยกเลิกการยืนยันแล้ว'); },
   async toggleVerify(){ await rpc('set_setting', {p_key:'require_verification', p_value:S.settings.require_verification === 'true' ? 'false' : 'true'}); await refresh(); },
+  async kpiRange(e){ S.kpiRange = e.id; await loadKpi(); },
+  exportKpi(){ if (!S.kpi) return toast('ยังไม่มีข้อมูลตัวชี้วัด'); const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([kpiCsv()], {type:'text/csv;charset=utf-8'})); a.download = `respace-kpi-${S.kpi.from}_${S.kpi.to}.csv`;
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); toast('ดาวน์โหลดรายงานแล้ว'); },
+  async saveTargets(){ const d = S.d, keys = ['kpi_users','kpi_savings','kpi_kg','kpi_rating','labor_value'];
+    for (const k of keys){ if (d[k] == null) continue; const v = Number(String(d[k]).replace(/,/g, '')); if (!isFinite(v) || v < 0) return toast('กรอกตัวเลขให้ถูกต้อง'); if (String(v) !== S.settings[k]) await rpc('set_setting', {p_key:k, p_value:String(v)}); }
+    await refresh(); S.d = {}; toast('บันทึกเป้าหมายแล้ว'); },
   async requestDeletion(){ if (S.d.del !== 1){ S.d.del = 1; return; } await rpc('request_deletion', {}); await refresh(); S.d = {}; toast('ส่งคำขอลบข้อมูลแล้ว'); },
   async toggleEarly(){ await rpc('set_setting', {p_key:'allow_early_checkin', p_value:S.settings.allow_early_checkin === 'true' ? 'false' : 'true'}); await refresh(); }
 };
