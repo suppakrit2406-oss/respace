@@ -868,9 +868,9 @@ function paintTour(){ let box = $('#tour'); document.querySelectorAll('.tour-hi'
   box.innerHTML = tourHtml(); const st = TOUR[role()][S.tour.i], el = st.sel && $(st.sel), key = role() + S.tour.i;
   if (el) el.classList.add('tour-hi');
   if (box.dataset.step !== key){ box.dataset.step = key; box.classList.remove('bottom');
-    if (el){ el.scrollIntoView({block:'center', behavior:'auto'});
+    if (el){ el.scrollIntoView({block:'center', behavior:'instant'});
       const r = el.getBoundingClientRect(), card = box.firstElementChild.getBoundingClientRect();
-      if (r.top < card.bottom + 12 && r.bottom > card.top - 12){ box.classList.add('bottom'); if (!el.closest('nav,header')) window.scrollBy(0, r.top - 76); } } }
+      if (r.top < card.bottom + 12 && r.bottom > card.top - 12){ box.classList.add('bottom'); if (!el.closest('nav,header')) window.scrollBy({top:r.top - 76, behavior:'instant'}); } } }
   if (!box.contains(document.activeElement)) $('#tour-next')?.focus(); }
 const HELP = {
   citizen:{t:'สำหรับประชาชน', steps:[['ส่งเคสตรวจเบื้องต้น','หน้าแรก → ตรวจเบื้องต้น → เลือกเครื่อง ถ่ายรูป 3 มุม เลือกอาการ แล้วส่ง ระบบคัดกรองความเสี่ยงทันที ช่างตอบภายใน 24 ชั่วโมง'],
