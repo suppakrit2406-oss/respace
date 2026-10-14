@@ -26,9 +26,9 @@ const ROLE = {citizen:'ประชาชน', tech:'ช่าง', admin:'แ�
 const TL = ['ส่งตรวจ','รอช่างประเมิน','ประเมินแล้ว','นัดหมายแล้ว','เช็กอิน','กำลังซ่อม','ผลซ่อม','ปิดเคส'];
 const TLI = {waiting:1,needinfo:1,assessed:2,booked:3,checkedin:4,repairing:5,done_ok:6,done_fail:6,referred:6,closed:7};
 const TABS = {
-  citizen:[['home','หน้าแรก'],['devices','เครื่องของฉัน'],['cases','ประวัติ'],['kb','ความรู้'],['me','โปรไฟล์']],
+  citizen:[['home','หน้าแรก'],['devices','เครื่องของฉัน'],['cases','ประวัติ'],['kb','เรียนรู้'],['me','โปรไฟล์']],
   tech:[['queue','คิวประเมิน'],['jobs','งานหน้างาน'],['me','โปรไฟล์']],
-  admin:[['dash','ภาพรวม'],['jobs','หน้างาน'],['sched','คิว'],['users','ผู้ใช้'],['stock','คลัง'],['pay','งบ'],['log','ตั้งค่า']]
+  admin:[['dash','ภาพรวม'],['jobs','หน้างาน'],['sched','คิว'],['users','ผู้ใช้'],['stock','คลัง'],['ws','อบรม'],['log','ตั้งค่า']]
 };
 
 /* ---------- ไอคอนเส้น 24px (วาดเอง) ---------- */
@@ -46,6 +46,7 @@ const IP = {
   stock:'<path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/>',
   pay:'<rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20"/><path d="M16 15h2"/>',
   log:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3.1 14H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 3.1V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"/>',
+  ws:'<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c3 2 9 2 12 0v-5"/><path d="M22 9v6"/>',
   logout:'<path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4"/><path d="M10 17l5-5-5-5M15 12H3"/>',
   scan:'<path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M7 12h10"/>',
   cal:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="m9 15 2 2 4-4"/>'
@@ -54,7 +55,7 @@ const ico = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 
 /* ---------- สถานะของหน้า ---------- */
 let S = {ready:false, session:null, me:null, tab:'home', view:null, d:{}, busy:false, auth:{mode:'login'}, photoUrls:{}};
-const blank = () => ({phones:{},requests:[],users:[],techs:[],stations:[],tools:[],parts:[],slots:[],kb:[],settings:{},devices:[],cases:[],assessments:[],chats:[],bookings:[],results:[],reviews:[],notifs:[],log:[]});
+const blank = () => ({workshops:[],seats:[],apps:[],dropoffs:[],waitlist:[],hours:[],phones:{},requests:[],users:[],techs:[],stations:[],tools:[],parts:[],slots:[],kb:[],settings:{},devices:[],cases:[],assessments:[],chats:[],bookings:[],results:[],reviews:[],notifs:[],log:[]});
 Object.assign(S, blank());
 const by = (l, id) => S[l].find(x => x.id === id);
 const role = () => S.me?.role || 'citizen';
@@ -95,9 +96,15 @@ async function loadAll(){
     staff ? q(sb.from('profiles').select('id,full_name,district,role,noshow_count,verified,created_at')) : Promise.resolve([]),
     admin ? q(sb.from('audit_log').select('*').order('created_at', {ascending:false}).limit(300)) : Promise.resolve([]),
     admin ? q(sb.from('contacts').select('*')) : Promise.resolve([]),
-    q(sb.from('data_requests').select('*').order('created_at', {ascending:false}))
+    q(sb.from('data_requests').select('*').order('created_at', {ascending:false})),
+    q(sb.from('workshops').select('*').order('date').order('start_time')), q(sb.from('workshop_seats').select('*')),
+    q(sb.from('tech_applications').select('*').order('created_at', {ascending:false})),
+    staff || true ? q(sb.from('ewaste_dropoffs').select('*').order('created_at', {ascending:false}).limit(200)) : Promise.resolve([]),
+    staff ? q(sb.from('dropoff_parts').select('*')) : Promise.resolve([]),
+    q(sb.from('waitlist').select('*').order('created_at'))
   ]);
-  const [techs, stations, tools, parts, slots, kb, settings, devices, hist, cases, photos, ass, aparts, atools, akb, chats, bookings, btools, bparts, results, reviews, notifs, users, log, contacts, requests] = R;
+  const [techs, stations, tools, parts, slots, kb, settings, devices, hist, cases, photos, ass, aparts, atools, akb, chats, bookings, btools, bparts, results, reviews, notifs, users, log, contacts, requests, workshops, seats, apps, dropoffs, dparts, waitlist] = R;
+  Object.assign(S, {workshops, seats, apps, dropoffs: dropoffs.map(x => ({...x, parts: dparts.filter(p => p.dropoff_id === x.id)})), waitlist});
   S.phones = Object.fromEntries(contacts.map(c => [c.user_id, c.phone])); S.requests = requests;
   Object.assign(S, {
     techs, stations, tools, parts: parts.map(p => ({...p, value:Number(p.value)})), slots: slots.map(s => hm(s.slot)),
@@ -122,6 +129,7 @@ async function loadAll(){
     notifs, users, log
   });
   if (admin) await loadKpi();
+  if (staff){ const n = new Date(); try { S.hours = await rpc('hours_report', {p_from:dkey(new Date(n.getFullYear(), n.getMonth(), 1)), p_to:dkey(n)}); } catch (e) { S.hours = []; } }
 }
 function kpiRange(){ const now = new Date(), y = now.getFullYear(), m = now.getMonth();
   if (S.kpiRange === 'all') return {p_from:null, p_to:null};
@@ -141,6 +149,7 @@ function vAuth(){
   <div><button type="button" class="link" data-a="authMode" data-id="login">← กลับไปเข้าสู่ระบบ</button></div></div>`;
   return `<div class="stack" style="max-width:440px;margin-inline:auto;width:100%">
   <div class="hero"><span class="pill">บริการสาธารณะ · ฟรี</span><h1 tabindex="-1">${signup ? 'ลงทะเบียนใช้บริการ' : 'ซ่อมเครื่องใช้ไฟฟ้า ฟรี ใกล้บ้าน'}</h1><p class="muted">${signup ? 'สร้างบัญชีเพื่อส่งอาการและจองคิวซ่อม' : 'ส่งรูปให้ช่างดูก่อน จองโต๊ะซ่อม แล้วเช็กอินด้วย QR'} · ${ORG}</p></div>
+  ${certCheck()}
   <div class="seg" role="group" aria-label="เลือกหน้า"><button type="button" data-a="authMode" data-id="login" aria-pressed="${!signup}">เข้าสู่ระบบ</button><button type="button" data-a="authMode" data-id="signup" aria-pressed="${signup}">ลงทะเบียน</button></div>
   <form class="card" id="auth-form" novalidate>
     ${signup ? `<label class="f">ชื่อ–นามสกุล<input id="au-name" data-m="name" autocomplete="name" required value="${esc(a.name)}"></label>
@@ -159,6 +168,10 @@ function vAuth(){
   </div>`;
 }
 
+function certCheck(){ const c = S.certCheck; if (!c) return '';
+  return c.loading ? `<p class="small muted" role="status">กำลังตรวจสอบใบรับรอง…</p>` : c.ok
+    ? `<div class="banner ok" role="status"><b>ใบรับรองถูกต้อง เลขที่ ${esc(c.ok.cert_no)}</b><span class="small">${esc(c.ok.name)} ผ่านการอบรม “${esc(c.ok.title)}” วันที่ ${new Date(c.ok.date + 'T00:00').toLocaleDateString('th-TH', {dateStyle:'long'})} ออกโดย${ORG}</span></div>`
+    : `<div class="banner bad" role="alert"><b>ไม่พบใบรับรองเลขที่ ${esc(c.no)}</b><span class="small">ตรวจสอบเลขที่อีกครั้ง หรือสอบถามเจ้าหน้าที่ศูนย์</span></div>`; }
 function vNewPw(){ return `<div class="stack" style="max-width:440px;margin-inline:auto;width:100%"><div><p class="eyebrow">${ORG}</p><h1 tabindex="-1">ตั้งรหัสผ่านใหม่</h1></div>
   <form class="card" id="newpw-form" novalidate><label class="f">รหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร)<input id="np-pw" data-m="newpw" type="password" autocomplete="new-password" required></label>
   <button class="btn pri" type="submit" ${S.busy ? 'disabled' : ''}>บันทึกรหัสผ่านใหม่</button></form></div>`; }
@@ -166,8 +179,8 @@ function vNewPw(){ return `<div class="stack" style="max-width:440px;margin-inli
 /* ================= มุมมองประชาชน ================= */
 function citizenView(){
   const v = S.view;
-  if (v){ const f = {triage:vTriage, addDevice:vAddDevice, case:vCase, book:vBook, booking:vBooking, device:vDevice, pickCase:vPickCase}[v.n]; if (f) return back() + f(v); }
-  return ({home:vHome, devices:vDevices, cases:vCases, kb:vKb, me:vMe}[S.tab] || vHome)();
+  if (v){ const f = {triage:vTriage, addDevice:vAddDevice, case:vCase, book:vBook, booking:vBooking, device:vDevice, pickCase:vPickCase, seat:vSeat, cert:vCert}[v.n]; if (f) return back() + f(v); }
+  return ({home:vHome, devices:vDevices, cases:vCases, kb:vLearn, me:vMe}[S.tab] || vHome)();
 }
 const back = () => `<div><button type="button" class="link" data-a="back">← กลับ</button></div>`;
 const mine = l => S[l].filter(x => x.userId === S.me.id);
@@ -184,12 +197,14 @@ function bookingCard(b){ const c = by('cases', b.caseId);
 function vHome(){
   const qs = mine('bookings').filter(live), cs = mine('cases').filter(c => ['assessed','needinfo','waiting'].includes(c.status) && !liveB(c.id));
   return `<div><p class="eyebrow">${ORG}</p><h1 tabindex="-1">สวัสดี คุณ${esc(S.me.full_name || '')}</h1></div>
+  ${waitBlock()}
   <div class="banner info small"><b>บริการสาธารณะ ไม่มีค่าใช้จ่าย</b><span>โต๊ะ เครื่องมือ คำแนะนำจากช่าง และอะไหล่พื้นฐานของศูนย์ ให้บริการฟรีสำหรับประชาชนในพื้นที่ ดำเนินการโดยหน่วยงานท้องถิ่น (ตัวอย่าง)</span></div>
   ${S.settings.require_verification === 'true' && !S.me.verified ? `<div class="banner warn" role="status"><b>ยังไม่ได้ยืนยันสิทธิ์คนในพื้นที่</b><span class="small">แจ้งอาการได้ตามปกติ แต่ต้องยืนยันสิทธิ์ก่อนจองคิว นำบัตรประชาชนไปที่เคาน์เตอร์ศูนย์</span></div>` : ''}
   ${S.me.noshow_count >= NOSHOW_LIMIT ? `<div class="banner bad" role="alert"><b>สิทธิ์การจองถูกพักไว้</b><span class="small">ไม่มาตามนัดครบ ${NOSHOW_LIMIT} ครั้ง ติดต่อเจ้าหน้าที่ศูนย์เพื่อขอคืนสิทธิ์</span></div>` : ''}
   <div class="big"><button type="button" class="pri" data-a="newTriage"><span class="ico">${ico('scan')}</span><b>ตรวจเบื้องต้น</b><span class="small">ส่งรูปและอาการให้ช่างประเมินออนไลน์</span></button>
   <button type="button" data-a="go" data-n="pickCase"><span class="ico">${ico('cal')}</span><b>จองซ่อม</b><span class="small muted">เลือกวัน เวลา โต๊ะ และอุปกรณ์</span></button></div>
   <h2>คิวของฉัน</h2>${qs.length ? qs.map(bookingCard).join('') : `<p class="muted small">ยังไม่มีคิว จองได้ฟรีจากเคสที่ประเมินแล้ว</p>`}
+  ${mySeats().length ? `<h2>เวิร์กช็อปที่ลงทะเบียน</h2>${mySeats().map(seatCard).join('')}` : ''}
   <h2>เคสที่รอดำเนินการ</h2>${cs.length ? cs.map(caseCard).join('') : `<p class="muted small">ไม่มีเคสค้าง</p>`}
   <h2>เคล็ดลับ</h2>${S.kb.filter(k => k.type === 'ทั่วไป').map(kbCard).join('')}`;
 }
@@ -213,17 +228,68 @@ function vAddDevice(){ return `<h1 tabindex="-1">เพิ่มเครื่�
 function vCases(){ return `<h1 tabindex="-1">ประวัติและสถานะ</h1>${mine('cases').slice().reverse().map(caseCard).join('') || `<p class="muted small">ยังไม่มีเคส</p>`}
   <h2>การจองทั้งหมด</h2>${mine('bookings').slice().reverse().map(bookingCard).join('') || `<p class="small muted">ยังไม่มีการจอง</p>`}`; }
 function vKb(){ return `<h1 tabindex="-1">คลังความรู้</h1><p class="muted small">จัดตามประเภทเครื่อง ทำเฉพาะขั้นตอนที่ช่างอนุมัติในเคสของคุณ</p>${S.kb.map(kbCard).join('')}`; }
+/* ----- เรียนรู้ / เวิร์กช็อป ----- */
+const today = () => dkey(new Date());
+const wsBy = id => S.workshops.find(w => w.id === id);
+const seatsOf = id => S.seats.filter(x => x.workshop_id === id && x.status !== 'cancelled');
+const mySeat = id => S.seats.find(x => x.workshop_id === id && x.user_id === S.me.id && x.status !== 'cancelled');
+const mySeats = () => S.seats.filter(x => x.user_id === S.me.id && x.status === 'booked' && wsBy(x.workshop_id)?.status === 'open' && wsBy(x.workshop_id).date >= today());
+const wsWhen = w => `${fdate(w.date)} ${hm(w.start_time)}–${hm(w.end_time)} น.`;
+function seatCard(x){ const w = wsBy(x.workshop_id);
+  return `<div class="card"><div class="row between"><span class="mono">${w.id}</span>${chip(['ลงทะเบียนแล้ว','ok'])}</div><h3>${esc(w.title)}</h3><p class="small muted">${wsWhen(w)} · ${esc(w.location)}</p>
+  <div><button type="button" class="btn sm pri" data-a="go" data-n="seat" data-id="${w.id}">ดู QR เข้าเรียน</button></div></div>`; }
+function wsCard(w){ const n = seatsOf(w.id).length, left = Math.max(0, w.capacity - n), me = mySeat(w.id);
+  return `<div class="card"><div class="row between"><h3 class="grow">${esc(w.title)}</h3>${me ? chip([me.status === 'attended' ? 'เรียนแล้ว' : 'ลงทะเบียนแล้ว','ok']) : chip([left ? `ว่าง ${left} ที่` : 'เต็ม', left ? 'acc' : 'bad'])}</div>
+  <p class="small muted">${wsWhen(w)} · ${esc(w.location)}${w.instructor_id ? ' · ผู้สอน ' + esc(techName(w.instructor_id)) : ''}</p>
+  ${w.description ? `<p class="small">${esc(w.description)}</p>` : ''}
+  <div>${me ? `<button type="button" class="btn sm" data-a="go" data-n="seat" data-id="${w.id}">ดู QR เข้าเรียน</button>` : `<button type="button" class="btn sm pri" data-a="joinWs" data-id="${w.id}" ${left ? '' : 'disabled'}>ลงทะเบียนฟรี</button>`}</div></div>`; }
+function vLearn(){ const open = S.workshops.filter(w => w.status === 'open' && w.date >= today()), certs = S.seats.filter(x => x.user_id === S.me.id && x.status === 'attended');
+  return `<h1 tabindex="-1">เรียนรู้</h1><p class="muted small">เวิร์กช็อปฝึกทักษะซ่อมฟรีจากช่างของศูนย์ เข้าเรียนครบได้ใบรับรอง</p>
+  <h2>เวิร์กช็อปที่เปิดรับ</h2>${open.map(wsCard).join('') || `<p class="small muted">ยังไม่มีเวิร์กช็อปที่เปิดรับ ติดตามได้ที่หน้านี้</p>`}
+  ${certs.length ? `<h2>ใบรับรองของฉัน</h2>${certs.map(x => { const w = wsBy(x.workshop_id); return `<div class="card"><div class="row between"><span class="mono">${esc(x.cert_no)}</span>${chip(['ผ่านการอบรม','ok'])}</div><h3>${esc(w?.title || '')}</h3><div><button type="button" class="btn sm" data-a="go" data-n="cert" data-id="${x.workshop_id}">เปิดใบรับรอง</button></div></div>`; }).join('')}` : ''}
+  <h2>คลังความรู้</h2><p class="muted small">จัดตามประเภทเครื่อง ทำเฉพาะขั้นตอนที่ช่างอนุมัติในเคสของคุณ</p>${S.kb.map(kbCard).join('')}`; }
+function vSeat(v){ const w = wsBy(v.id), x = w && mySeat(w.id); if (!x) return `<p>ไม่พบการลงทะเบียนนี้</p>`;
+  if (x.status === 'attended') return vCert(v);
+  return `<h1 tabindex="-1">${esc(w.title)}</h1><div class="card"><dl class="kv"><dt>วันเวลา</dt><dd>${wsWhen(w)}</dd><dt>สถานที่</dt><dd>${esc(w.location)}</dd><dt>ผู้สอน</dt><dd>${esc(w.instructor_id ? techName(w.instructor_id) : '-')}</dd></dl></div>
+  <div class="card"><h2>QR เข้าเรียน</h2><div class="qr" data-qr="${esc(x.token)}" role="img" aria-label="คิวอาร์โค้ดเข้าเรียน รหัส ${esc(x.token)}"></div><div class="code">${esc(x.token)}</div><p class="small muted">ให้เจ้าหน้าที่สแกนเมื่อมาถึง ระบบจะออกใบรับรองให้ทันที</p></div>
+  <div><button type="button" class="btn sm danger" data-a="leaveWs" data-id="${w.id}">${S.d.lw === w.id ? 'กดอีกครั้งเพื่อยืนยันการยกเลิก' : 'ยกเลิกการลงทะเบียน'}</button></div>`; }
+const verifyUrl = no => location.origin + location.pathname + '?cert=' + encodeURIComponent(no);
+function vCert(v){ const w = wsBy(v.id), x = w && S.seats.find(s => s.workshop_id === w.id && s.user_id === S.me.id && s.status === 'attended'); if (!x) return `<p>ยังไม่มีใบรับรองสำหรับเวิร์กช็อปนี้</p>`;
+  return `<h1 tabindex="-1" class="no-print">ใบรับรอง</h1><div class="cert">
+  <p class="eyebrow">${ORG}</p><h2>ใบรับรองการเข้าร่วมอบรม</h2><p>ขอรับรองว่า</p><p class="cert-name">${esc(S.me.full_name)}</p>
+  <p>ได้เข้าร่วมเวิร์กช็อป</p><p class="cert-title">${esc(w.title)}</p><p class="small">${new Date(w.date + 'T00:00').toLocaleDateString('th-TH', {dateStyle:'long'})}${w.instructor_id ? ' · ผู้สอน ' + esc(techName(w.instructor_id)) : ''}</p>
+  <div class="row between cert-foot"><div class="small"><span class="muted">เลขที่</span> <span class="mono">${esc(x.cert_no)}</span><br><span class="muted">ตรวจสอบได้ด้วยการสแกน QR</span></div><div class="qr sm" data-qr="${esc(verifyUrl(x.cert_no))}" role="img" aria-label="คิวอาร์โค้ดตรวจสอบใบรับรอง"></div></div></div>
+  <div class="no-print"><button type="button" class="btn pri" data-a="print">พิมพ์ / บันทึกเป็น PDF</button></div>`; }
+/* ----- คิวสำรอง ----- */
+function waitBlock(){ const ws = S.waitlist.filter(w => w.user_id === S.me.id && ['waiting','offered'].includes(w.status)); if (!ws.length) return '';
+  const hold = Number(S.settings.waitlist_hold_hours || 2);
+  return ws.map(w => w.status === 'offered'
+    ? `<div class="banner ok" role="status"><b>มีคิวว่างให้คุณ: ${fdate(w.date)} ${hm(w.offer_slot)} น.</b><span class="small">เคส ${w.case_id} · กันไว้ถึง ${new Date(new Date(w.offered_at).getTime() + hold * 36e5).toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'})} น.</span><div class="row"><button type="button" class="btn sm pri" data-a="bookOffer" data-id="${w.id}">จองเลย</button><button type="button" class="btn sm" data-a="leaveWait" data-id="${w.id}">ไม่ต้องการแล้ว</button></div></div>`
+    : `<div class="card"><div class="row between"><span class="small">รอคิวว่าง ${fdate(w.date)} · เคส ${w.case_id}</span>${chip(['ลงชื่อรอ','warn'])}</div><div><button type="button" class="btn sm" data-a="leaveWait" data-id="${w.id}">ยกเลิกการรอ</button></div></div>`).join(''); }
+function volunteerCard(){ const a = S.apps.find(x => x.user_id === S.me.id && x.status === 'pending'), d = S.d;
+  if (a) return `<div class="card"><h2>ช่างอาสา</h2><p class="small">${chip(['รอพิจารณา','warn'])} ส่งใบสมัครเมื่อ ${ftime(a.created_at)} เจ้าหน้าที่จะติดต่อนัดทดสอบทักษะ</p></div>`;
+  if (!d.vol) return `<div class="card"><h2>ช่างอาสา</h2><p class="small muted">มีทักษะซ่อมเครื่องใช้ไฟฟ้า? ร่วมเป็นช่างอาสาหรือช่างสูงวัยของศูนย์ สอนและกำกับงานซ่อมให้คนในชุมชน</p><div><button type="button" class="btn sm" data-a="volOpen">สมัครเป็นช่างอาสา</button></div></div>`;
+  return `<div class="card"><h2>สมัครเป็นช่างอาสา</h2>
+  <label class="f">ทักษะที่ถนัด<input id="v-skills" data-m="vSkills" value="${esc(d.vSkills)}" placeholder="เช่น พัดลม หม้อหุงข้าว งานบัดกรี"></label>
+  <label class="f">ประสบการณ์<textarea id="v-exp" data-m="vExp">${esc(d.vExp)}</textarea></label>
+  <label class="f">วันเวลาที่สะดวก<input id="v-av" data-m="vAvail" value="${esc(d.vAvail)}" placeholder="เช่น เสาร์–อาทิตย์ ช่วงเช้า"></label>
+  <label class="row small"><input type="checkbox" id="v-senior" data-m="vSenior" ${d.vSenior ? 'checked' : ''}> สมัครในโครงการช่างสูงวัย (อายุ 60 ปีขึ้นไป)</label>
+  <div class="row"><button type="button" class="btn pri sm" data-a="applyTech">ส่งใบสมัคร</button><button type="button" class="btn sm" data-a="volClose">ยกเลิก</button></div></div>`; }
+function hoursCard(){ const t = S.techs.find(x => x.user_id === S.me.id), h = t && S.hours.find(x => x.tech_id === t.id); if (!h) return '';
+  const hr = m => (m / 60).toLocaleString('th-TH', {maximumFractionDigits:1});
+  return `<div class="card"><h2>ชั่วโมงงานเดือนนี้</h2><div class="stat"><div><b>${hr(h.total_min)}</b><span class="small muted">ชั่วโมงรวม</span></div><div><b>${h.repairs}</b><span class="small muted">งานซ่อม (${hr(h.repair_min)} ชม.)</span></div><div><b>${h.workshops}</b><span class="small muted">คลาสที่สอน (${hr(h.workshop_min)} ชม.)</span></div></div></div>`; }
 function vMe(){ const u = S.me, d = S.d;
   return `<h1 tabindex="-1">โปรไฟล์และแจ้งเตือน</h1>
   <div class="card"><dl class="kv"><dt>บทบาท</dt><dd>${ROLE[u.role]}</dd><dt>อีเมล</dt><dd>${esc(S.session.user.email)}</dd>
   ${u.role === 'citizen' ? `<dt>สิทธิ์การจอง</dt><dd>${u.noshow_count >= NOSHOW_LIMIT ? chip(['พักสิทธิ์ ติดต่อเจ้าหน้าที่','bad']) : chip(['ใช้ได้','ok'])} ไม่มาตามนัด ${u.noshow_count} / ${NOSHOW_LIMIT} ครั้ง</dd>` : ''}
-  <dt>แจ้งเตือน</dt><dd>ในแอป (LINE / SMS อยู่ในเฟส 2)</dd></dl>
+  <dt>แจ้งเตือน</dt><dd>ในแอป</dd></dl>
   <div class="grid2"><label class="f">ชื่อ–นามสกุล<input id="me-name" data-m="full_name" value="${esc(d.full_name ?? u.full_name)}"></label>
   <label class="f">เบอร์โทร<input id="me-phone" data-m="phone" type="tel" value="${esc(d.phone ?? u.phone)}"></label>
   <label class="f">อำเภอ / เขต<input id="me-district" data-m="district" value="${esc(d.district ?? u.district)}"></label></div>
   <div><button type="button" class="btn sm" data-a="saveProfile">บันทึกโปรไฟล์</button></div></div>
   ${u.role === 'citizen' ? `<div class="card"><h2>ข้อมูลส่วนบุคคล</h2><p class="small muted">ศูนย์เก็บชื่อ เบอร์โทร อำเภอ ภาพเครื่อง และแชต เพื่อให้บริการซ่อมเท่านั้น เบอร์โทรเห็นได้เฉพาะคุณและแอดมิน</p>
   ${S.requests.some(x => x.status === 'pending') ? `<p class="small">${chip(['ส่งคำขอลบแล้ว','warn'])} เจ้าหน้าที่จะลบบัญชีและข้อมูลทั้งหมดภายใน 30 วัน</p>` : `<div><button type="button" class="btn sm danger" data-a="requestDeletion">${S.d.del === 1 ? 'กดอีกครั้งเพื่อยืนยันคำขอลบ' : 'ขอลบบัญชีและข้อมูลทั้งหมด'}</button></div>`}</div>` : ''}
+  ${u.role === 'citizen' ? volunteerCard() : hoursCard()}
   <h2>แจ้งเตือน</h2>${S.notifs.map(x => `<div class="card"><p>${x.read ? '' : chip(['ใหม่','acc']) + ' '}${esc(x.body)}</p><span class="small muted">${ftime(x.created_at)}</span></div>`).join('') || `<p class="small muted">ยังไม่มีแจ้งเตือน</p>`}`; }
 
 /* ----- ตรวจเบื้องต้น ----- */
@@ -301,6 +367,9 @@ function vBook(){ const d = S.d, c = by('cases', d.caseId), a = lastA(c.id), st 
     <h2 id="date-h">วัน</h2><div class="opt" role="group" aria-labelledby="date-h">${days().map(k => `<button type="button" data-a="bDate" data-id="${k}" aria-pressed="${d.date === k}">${fdate(k)}</button>`).join('')}</div>
     <h2 id="slot-h">ช่วงเวลา (1 ชั่วโมง)</h2>${d.loading ? `<p class="small muted" role="status">กำลังตรวจคิวว่าง…</p>` : `<div class="opt" role="group" aria-labelledby="slot-h">${S.slots.map(s => { const o = opts.find(x => x.slot === s); return `<button type="button" data-a="bSlot" data-id="${s}" aria-pressed="${d.slot === s}" ${o && o.ok ? '' : 'disabled'}>${s}${o && o.ok ? '' : ' (เต็ม)'}</button>`; }).join('')}</div>`}
     <p class="small muted">แสดงเฉพาะช่วงที่โต๊ะ ${d.mode === 'tech' ? 'ช่าง ' : ''}และเครื่องมือว่างพร้อมกัน</p>
+    ${!d.loading && opts.length && !opts.some(o => o.ok) && d.date >= today() ? (S.waitlist.some(w => w.case_id === c.id && w.date === d.date && ['waiting','offered'].includes(w.status))
+      ? `<div class="banner info small" role="status"><b>ลงชื่อรอคิววันนี้แล้ว</b><span>ถ้ามีคนยกเลิก ระบบจะแจ้งและกันที่ไว้ให้ ${esc(S.settings.waitlist_hold_hours || '2')} ชั่วโมง</span></div>`
+      : `<div class="card"><h3>วันนี้เต็มทุกช่วงเวลา</h3><p class="small muted">ลงชื่อรอไว้ได้ ถ้ามีคนยกเลิก ระบบจะแจ้งคุณเป็นคนแรกตามลำดับ และกันที่ไว้ให้ ${esc(S.settings.waitlist_hold_hours || '2')} ชั่วโมง</p><div><button type="button" class="btn sm" data-a="joinWait">ลงชื่อรอคิว ${fdate(d.date)}</button></div></div>`) : ''}
     <button type="button" class="btn pri" data-a="bNext" ${d.slot ? '' : 'disabled'}>ถัดไป</button>`;
   if (st === 2){ const fs = (cur?.stations || []).map(station), allow = a ? [...new Set(a.tools.concat(a.allowed))] : [];
     return head + `<h2 id="st-h">โต๊ะ</h2><div class="opt" role="group" aria-labelledby="st-h">${fs.map(x => `<button type="button" data-a="bStation" data-id="${x.id}" aria-pressed="${d.stationId === x.id}">${esc(x.name)} · ${esc(x.label)}</button>`).join('') || '<p class="small muted">ไม่มีโต๊ะว่าง ย้อนกลับไปเลือกช่วงเวลาใหม่</p>'}</div>
@@ -347,6 +416,7 @@ function vBooking(v){ const b = by('bookings', v.id); if (!b) return `<p>ไม�
 function techView(){ const v = S.view;
   if (v && v.n === 'assess') return back() + vAssess(v);
   if (v && v.n === 'job') return back() + vJob(v);
+  if (v && v.n === 'dropoff') return back() + vDropoff();
   if (S.tab === 'jobs') return vJobs();
   if (S.tab === 'me') return vMe();
   const qs = S.cases.filter(c => ['waiting','needinfo'].includes(c.status)).sort((a, b) => (b.risk === 'high') - (a.risk === 'high') || a.created.localeCompare(b.created));
@@ -371,10 +441,11 @@ function vAssess(v){ const c = by('cases', v.id), d = S.d, dev = by('devices', c
   : (lastA(c.id) ? assessCard(lastA(c.id)) : '')}${chatBox(c)}`; }
 function vJobs(){ const bs = S.bookings.filter(b => ['confirmed','checkedin','inprogress'].includes(b.status) || (b.status === 'completed' && by('cases', b.caseId)?.status !== 'closed')).sort((a, b) => (a.date + a.slot).localeCompare(b.date + b.slot));
   const early = S.settings.allow_early_checkin === 'true', next = bs.find(b => b.status === 'confirmed');
-  return `<h1 tabindex="-1">งานหน้างาน</h1><div class="card"><h2>เช็กอินผู้รับบริการ</h2><div class="row"><input id="ci-code" class="grow mono" data-m="code" aria-label="รหัสเช็กอิน" placeholder="สแกนหรือพิมพ์รหัส RS-XXXXX-XXXXX" value="${esc(S.d.code)}" data-enter="checkin"><button type="button" class="btn pri" data-a="checkin">เช็กอิน</button></div>
+  return `<h1 tabindex="-1">งานหน้างาน</h1><div class="card"><h2>เช็กอินผู้รับบริการ</h2><div class="row"><input id="ci-code" class="grow mono" data-m="code" aria-label="รหัสเช็กอิน" placeholder="สแกนหรือพิมพ์รหัส RS- หรือ WS-" value="${esc(S.d.code)}" data-enter="checkin"><button type="button" class="btn pri" data-a="checkin">เช็กอิน</button></div>
   <div><button type="button" class="btn" data-a="scan">สแกน QR ด้วยกล้อง</button></div>
   ${early && next ? `<button type="button" class="link small" data-a="fillCode" data-id="${esc(next.token)}">เดโม: เติมรหัสของคิวถัดไป</button>` : ''}
-  <p class="small muted">${early ? 'โหมดทดลองเปิดอยู่: เช็กอินก่อนวันนัดได้ (แอดมินปิดได้ที่หน้าบันทึก)' : 'รหัสใช้ได้เฉพาะวันนัด'}</p></div>
+  <p class="small muted">${early ? 'โหมดทดลองเปิดอยู่: เช็กอินก่อนวันนัดได้ (แอดมินปิดได้ที่หน้าบันทึก)' : 'รหัสใช้ได้เฉพาะวันนัด'} · รหัส WS- คือผู้เข้าเวิร์กช็อป</p></div>
+  <div class="card"><div class="row between"><div class="grow"><h2>รับทิ้งขยะอิเล็กทรอนิกส์</h2><p class="small muted">ชั่งน้ำหนัก บันทึก และถอดอะไหล่ที่ยังดีเข้าคลัง</p></div><button type="button" class="btn sm" data-a="go" data-n="dropoff">บันทึกการรับทิ้ง</button></div></div>
   ${bs.map(b => { const c = by('cases', b.caseId); return `<div class="card"><div class="row between"><span class="mono">${b.id} · ${c.id}</span>${chip(BSTAT[b.status])}</div><h3>${fdate(b.date)} ${b.slot} · ${esc(station(b.stationId).name)}</h3>
   <p class="small muted">${esc(devName(by('devices', c.deviceId)))} · ${b.mode === 'self' ? 'ผู้แจ้งซ่อมเอง' : 'ช่างซ่อม'}</p>${b.call === 'open' ? `<span class="chip bad">ผู้รับบริการเรียกช่าง</span>` : ''}
   <div><button type="button" class="btn sm" data-a="go" data-n="job" data-id="${b.id}">เปิดงาน ${b.id}</button></div></div>`; }).join('') || `<p class="muted">ยังไม่มีคิวที่ยืนยันแล้ว</p>`}`; }
@@ -393,16 +464,33 @@ function vJob(v){ const b = by('bookings', v.id), c = by('cases', b.caseId), a =
     h += `<p class="small muted">เคสปิดเองเมื่อบันทึกผลแล้วและคืนเครื่องมือครบ</p>`; }
   return h + chatBox(c); }
 
+function vDropoff(){ const d = S.d, cit = S.users.filter(u => u.role === 'citizen');
+  return `<h1 tabindex="-1">บันทึกการรับทิ้ง</h1><div class="card"><p class="small muted">ใช้กับเครื่องที่ไม่คุ้มซ่อมหรือประชาชนนำมาทิ้ง ศูนย์รวบรวมส่งโรงงานที่ได้รับอนุญาต</p>
+  <div class="grid2"><label class="f">ผู้นำมาทิ้ง (ไม่ระบุได้)<select id="do-user" data-m="dUser"><option value="">ไม่ระบุ</option>${cit.map(u => `<option value="${u.id}" ${d.dUser === u.id ? 'selected' : ''}>${esc(u.full_name)}</option>`).join('')}</select></label>
+  <label class="f">ประเภทเครื่อง<select id="do-type" data-m="dType">${TYPES.map(t => `<option ${(d.dType || TYPES[0]) === t ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+  <label class="f">น้ำหนักจริง (กก.)<input id="do-kg" data-m="dKg" inputmode="decimal" value="${esc(d.dKg)}" required></label>
+  <label class="f">เลขเคส (ถ้ามี)<input id="do-case" data-m="dCase" class="mono" value="${esc(d.dCase)}" placeholder="C0000"></label></div>
+  <h2>อะไหล่ที่ถอดได้และยังใช้ได้</h2><div class="grid2">${S.parts.map(p => `<label class="f">${esc(p.name)} (ชิ้น)<input id="do-${p.id}" data-m="h_${p.id}" inputmode="numeric" value="${esc(d['h_' + p.id] ?? '')}" placeholder="0"></label>`).join('')}</div>
+  <label class="f">หมายเหตุ<input id="do-note" data-m="dNote" value="${esc(d.dNote)}"></label>
+  <div><button type="button" class="btn pri" data-a="saveDropoff" ${S.busy ? 'disabled' : ''}>บันทึกและรับอะไหล่เข้าคลัง</button></div></div>
+  <h2>รายการล่าสุด</h2>${dropTable(S.dropoffs.slice(0, 10))}`; }
+function dropTable(list){ return `<div class="tw" tabindex="0"><table><thead><tr><th scope="col">รหัส</th><th scope="col">วันที่</th><th scope="col">ประเภท</th><th class="num" scope="col">กก.</th><th scope="col">อะไหล่ที่ได้</th></tr></thead><tbody>
+  ${list.map(x => `<tr><td class="mono">${x.id}</td><td>${ftime(x.created_at)}</td><td>${esc(x.device_type)}</td><td class="num">${Number(x.weight_kg).toFixed(1)}</td><td>${x.parts.map(p => esc(partName(p.part_id)) + ' ×' + p.qty).join(', ') || '-'}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">ยังไม่มีรายการ</td></tr>'}</tbody></table></div>`; }
+
 /* ================= มุมมองแอดมิน ================= */
 function adminView(){ const v = S.view; if (v && v.n === 'job') return back() + vJob(v); if (v && v.n === 'case') return back() + vCase(v);
-  return ({dash:aDash, jobs:vJobs, sched:aSched, users:aUsers, stock:aStock, pay:aPay, log:aLog}[S.tab] || aDash)(); }
+  if (v && v.n === 'dropoff') return back() + vDropoff(); if (v && v.n === 'pay') return back() + aPay();
+  return ({dash:aDash, jobs:vJobs, sched:aSched, users:aUsers, stock:aStock, ws:aWs, log:aLog}[S.tab] || aDash)(); }
 function aDash(){ const today = dkey(new Date());
   const suspended = S.users.filter(u => u.noshow_count >= NOSHOW_LIMIT);
   return `<div><p class="eyebrow">เจ้าหน้าที่ศูนย์</p><h1 tabindex="-1">แดชบอร์ด</h1></div>${kpiSection()}<h2>วันนี้</h2><div class="stat">
   <div><b>${S.cases.filter(c => c.status === 'waiting').length}</b><span class="small muted">เคสรอประเมิน</span></div>
   <div><b>${S.bookings.filter(b => live(b) && b.date === today).length}</b><span class="small muted">คิววันนี้</span></div>
   <div><b>${S.bookings.filter(b => b.status === 'noshow').length}</b><span class="small muted">ไม่มาตามนัด</span></div>
-  <div><b>${S.parts.filter(p => p.stock - p.reserved <= 1).length}</b><span class="small muted">อะไหล่ใกล้หมด</span></div></div>
+  <div><b>${S.parts.filter(p => p.stock - p.reserved <= 1).length}</b><span class="small muted">อะไหล่ใกล้หมด</span></div>
+  <div><b>${S.apps.filter(a => a.status === 'pending').length}</b><span class="small muted">ใบสมัครช่างรอพิจารณา</span></div>
+  <div><b>${S.waitlist.filter(w => ['waiting','offered'].includes(w.status)).length}</b><span class="small muted">ผู้รอคิวสำรอง</span></div></div>
+  <div><button type="button" class="link" data-a="go" data-n="pay">ดูรายละเอียดงบอะไหล่ที่สนับสนุน →</button></div>
   ${suspended.length ? `<h2>ผู้ใช้ที่ถูกพักสิทธิ์</h2>${suspended.map(u => `<div class="card"><div class="row between"><span>${esc(u.full_name)} · ไม่มาตามนัด ${u.noshow_count} ครั้ง</span><button type="button" class="btn sm" data-a="resetNoshow" data-id="${u.id}">คืนสิทธิ์</button></div></div>`).join('')}` : ''}
   ${S.reviews.length ? `<h2>รีวิวล่าสุด</h2>` + S.reviews.slice(-5).reverse().map(r => `<div class="card"><p><span aria-label="${r.stars} ดาว">${'★'.repeat(r.stars)}</span> ${esc(r.text)}</p><span class="small muted mono">${r.bookingId}</span></div>`).join('') : ''}`; }
 const RANGES = [['fy','ปีงบนี้'],['month','เดือนนี้'],['all','ทั้งหมด']];
@@ -420,26 +508,31 @@ function kpiSection(){ const k = S.kpi, r = S.kpiRange || 'fy';
   ${kpiBar('ประมาณการลดรายจ่ายประชาชน', k.savings, t.kpi_savings, n, 'บาท')}
   ${kpiBar('ขยะอิเล็กทรอนิกส์ที่ลดได้', k.kg, t.kpi_kg, n, 'กก.')}
   ${kpiBar('ความพึงพอใจเฉลี่ย', k.rating || 0, t.kpi_rating, x => Number(x || 0).toFixed(1), 'ดาว')}</div>
-  <p class="small muted">ช่วงนี้: ผู้ลงทะเบียนใหม่ ${n(k.citizens_new)} คน · ส่งเคส ${n(k.cases)} เคส · ซ่อมจบ ${n(k.repairs)} งาน (สำเร็จ ${n(k.ok)}) · รีวิว ${n(k.reviews)} รายการ${k.good_pct != null ? ` (พอใจ 4–5 ดาว ${k.good_pct}%)` : ''}</p>`; }
+  <p class="small muted">ช่วงนี้: อบรม ${n(k.workshops)} คลาส ผู้ผ่านการอบรม ${n(k.trained)} คน · รับทิ้งขยะอย่างถูกวิธี ${n(k.dropoff_kg)} กก. (${n(k.dropoffs)} รายการ ถอดอะไหล่กลับมาใช้ ${n(k.harvested)} ชิ้น) · ผู้ลงทะเบียนใหม่ ${n(k.citizens_new)} คน · ส่งเคส ${n(k.cases)} เคส · ซ่อมจบ ${n(k.repairs)} งาน (สำเร็จ ${n(k.ok)}) · รีวิว ${n(k.reviews)} รายการ${k.good_pct != null ? ` (พอใจ 4–5 ดาว ${k.good_pct}%)` : ''}</p>`; }
 function kpiCsv(){ const k = S.kpi, t = k.targets || {}, q2 = v => /[",\n]/.test(String(v ?? '')) ? `"${String(v).replace(/"/g, '""')}"` : String(v ?? '');
   const rows = [['รายงานตัวชี้วัด ReSpace', ORG], ['ช่วงเวลา', k.from + ' ถึง ' + k.to], [],
     ['ตัวชี้วัด','ผลลัพธ์','เป้าหมาย','หน่วย'], ['ผู้ใช้งาน (บัญชีประชาชน)', k.citizens, t.kpi_users, 'คน'],
     ['ประมาณการลดรายจ่ายประชาชน', k.savings, t.kpi_savings, 'บาท'], ['ขยะอิเล็กทรอนิกส์ที่ลดได้', k.kg, t.kpi_kg, 'กก.'],
     ['ความพึงพอใจเฉลี่ย', k.rating ?? '', t.kpi_rating, 'ดาว'], ['ค่าแรงมาตรฐานที่ใช้คำนวณ', k.labor_value, '', 'บาท/งาน'], [],
+    ['ตัวชี้วัดเสริม','ผลลัพธ์','','หน่วย'], ['เวิร์กช็อปที่จัด', k.workshops, '', 'คลาส'], ['ผู้ผ่านการอบรม', k.trained, '', 'คน'],
+    ['ขยะที่รับทิ้งอย่างถูกวิธี (ไม่นับรวมขยะที่ลดได้)', k.dropoff_kg, '', 'กก.'], ['อะไหล่ที่ถอดกลับมาใช้', k.harvested, '', 'ชิ้น'], [],
     ['เดือน','เคสใหม่','ซ่อมจบ','ซ่อมสำเร็จ','ขยะที่ลดได้ (กก.)','ลดรายจ่าย (บาท)','รีวิว','คะแนนเฉลี่ย'],
     ...(k.monthly || []).map(m => [m.month, m.cases, m.repairs, m.ok, m.kg, m.savings, m.reviews, m.rating ?? ''])];
   return '﻿' + rows.map(r => r.map(q2).join(',')).join('\r\n'); }
 function aSched(){ const ds = days().slice(0, 3), act = S.bookings.filter(live);
   return `<h1 tabindex="-1">ตารางคิว</h1>${ds.map(k => `<h2>${fdate(k)}</h2><div class="tw" tabindex="0"><table><caption class="small muted" style="text-align:left">คิวรายโต๊ะ ${fdate(k)}</caption><thead><tr><th scope="col">เวลา</th>${S.stations.map(s => `<th scope="col">${s.id}</th>`).join('')}</tr></thead><tbody>
   ${S.slots.map(s => `<tr><th scope="row">${s}</th>${S.stations.map(st => { const b = act.find(x => x.date === k && x.slot === s && x.stationId === st.id); return `<td>${b ? `<span class="chip ${BSTAT[b.status][1]}">${b.id}</span>` : '<span class="muted">ว่าง</span>'}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`).join('')}
+  <h2>คิวสำรอง</h2>${(() => { const wl = S.waitlist.filter(w => ['waiting','offered'].includes(w.status)); return `<div class="tw" tabindex="0"><table><thead><tr><th scope="col">วันที่</th><th scope="col">ผู้รอ</th><th scope="col">เคส</th><th scope="col">สถานะ</th></tr></thead><tbody>${wl.map(w => `<tr><td>${fdate(w.date)}</td><td>${esc(userName(w.user_id))}</td><td class="mono">${w.case_id}</td><td>${w.status === 'offered' ? chip([`เสนอคิว ${hm(w.offer_slot)} แล้ว`,'ok']) : chip(['รอ','warn'])}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">ไม่มีผู้รอ</td></tr>'}</tbody></table></div>`; })()}
   <h2>การจองทั้งหมด</h2><div class="tw" tabindex="0"><table><thead><tr><th scope="col">รหัส</th><th scope="col">นัด</th><th scope="col">ผู้รับบริการ</th><th scope="col">สถานะ</th><th scope="col"><span class="sr">การดำเนินการ</span></th></tr></thead><tbody>${S.bookings.slice().reverse().map(b => `<tr><td class="mono">${b.id}</td><td>${fdate(b.date)} ${b.slot}</td><td>${esc(userName(b.userId))}</td><td>${chip(BSTAT[b.status])}</td><td>${b.status === 'confirmed' ? `<button type="button" class="btn sm" data-a="noshow" data-id="${b.id}">${S.d.ns === b.id ? 'กดอีกครั้งเพื่อยืนยัน' : 'ไม่มาตามนัด'}</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">ยังไม่มีการจอง</td></tr>'}</tbody></table></div>`; }
 const roleBtn = (u, r, label) => `<button type="button" class="btn sm" data-a="setRole" data-id="${u.id}" data-r="${r}">${S.d.rc === u.id + r ? 'กดอีกครั้งเพื่อยืนยัน' : label}</button>`;
 function aUsers(){ const req = S.requests.filter(x => x.status === 'pending'), staff = S.users.filter(u => u.role !== 'citizen'), cit = S.users.filter(u => u.role === 'citizen').sort((a, b) => (a.verified - b.verified) || a.full_name.localeCompare(b.full_name));
   return `<h1 tabindex="-1">ผู้ใช้</h1>
   ${req.length ? `<div class="banner warn"><b>คำขอลบบัญชีและข้อมูล ${req.length} รายการ</b><span class="small">ดำเนินการภายใน 30 วันตาม PDPA: ลบผู้ใช้ใน Supabase Dashboard → Authentication → Users ข้อมูลที่เชื่อมกันจะถูกลบตาม</span></div>` : ''}
+  ${appsBlock()}
   <p class="small muted">${S.settings.require_verification === 'true' ? 'เปิดกฎยืนยันสิทธิ์อยู่: ผู้ใช้ที่ยังไม่ยืนยันจองคิวไม่ได้' : 'กฎยืนยันสิทธิ์ปิดอยู่ (เปิดได้ที่หน้าตั้งค่า)'}</p>
   <h2>เจ้าหน้าที่</h2><div class="tw" tabindex="0"><table><thead><tr><th scope="col">ชื่อ</th><th scope="col">บทบาท</th><th scope="col"><span class="sr">การดำเนินการ</span></th></tr></thead><tbody>
   ${staff.map(u => `<tr><td>${esc(u.full_name)}</td><td>${ROLE[u.role]}</td><td>${u.id === S.me.id ? '<span class="small muted">บัญชีของคุณ</span>' : `<div class="row">${u.role === 'tech' ? roleBtn(u, 'admin', 'ตั้งเป็นแอดมิน') : roleBtn(u, 'tech', 'ตั้งเป็นช่าง')}${roleBtn(u, 'citizen', 'ถอดสิทธิ์เจ้าหน้าที่')}</div>`}</td></tr>`).join('')}</tbody></table></div>
+  ${hoursBlock()}
   <h2>ประชาชน</h2><div class="tw" tabindex="0"><table><thead><tr><th scope="col">ชื่อ</th><th scope="col">อำเภอ / เขต</th><th scope="col">เบอร์โทร</th><th scope="col">สถานะ</th><th scope="col"><span class="sr">การดำเนินการ</span></th></tr></thead><tbody>
   ${cit.map(u => `<tr><td>${esc(u.full_name)}</td><td>${esc(u.district || '-')}</td><td class="mono">${esc(S.phones[u.id] || '-')}</td><td>${u.verified ? chip(['ยืนยันแล้ว','ok']) : chip(['ยังไม่ยืนยัน','warn'])}${u.noshow_count >= NOSHOW_LIMIT ? ' ' + chip(['พักสิทธิ์','bad']) : ''}${req.some(x => x.user_id === u.id) ? ' ' + chip(['ขอลบข้อมูล','bad']) : ''}</td>
   <td><div class="row"><button type="button" class="btn sm" data-a="verify" data-id="${u.id}" data-v="${u.verified ? '0' : '1'}">${u.verified ? 'ยกเลิกยืนยัน' : 'ยืนยันสิทธิ์'}</button>${u.noshow_count >= NOSHOW_LIMIT ? `<button type="button" class="btn sm" data-a="resetNoshow" data-id="${u.id}">คืนสิทธิ์จอง</button>` : ''}${roleBtn(u, 'tech', 'ตั้งเป็นช่าง')}</div></td></tr>`).join('') || '<tr><td colspan="5" class="muted">ยังไม่มีผู้ใช้</td></tr>'}</tbody></table></div>`; }
@@ -447,7 +540,41 @@ function aStock(){ return `<h1 tabindex="-1">อุปกรณ์และอ�
   ${S.tools.map(t => `<tr><td>${esc(t.name)}</td><td class="num">${t.qty}</td><td class="num">${t.maint}</td><td class="num">${t.qty - t.maint}</td><td><button type="button" class="btn sm" data-a="maint" data-id="${t.id}" data-v="1" ${t.maint >= t.qty ? 'disabled' : ''}>ส่งซ่อมบำรุง</button> <button type="button" class="btn sm" data-a="maint" data-id="${t.id}" data-v="-1" ${t.maint ? '' : 'disabled'}>กลับมาใช้</button></td></tr>`).join('')}</tbody></table></div>
   <p class="small muted">จำนวนที่ถูกจองคิดแยกตามช่วงเวลา จึงจองล่วงหน้าได้แม้ตอนนี้มีคนใช้อยู่</p>
   <h2>อะไหล่</h2><div class="tw" tabindex="0"><table><thead><tr><th scope="col">รหัส</th><th scope="col">อะไหล่</th><th class="num" scope="col">คงเหลือ</th><th class="num" scope="col">กันไว้</th><th class="num" scope="col">พร้อมจ่าย</th><th class="num" scope="col">ใช้จริง</th><th class="num" scope="col">มูลค่า</th><th scope="col"><span class="sr">การดำเนินการ</span></th></tr></thead><tbody>
-  ${S.parts.map(p => `<tr><td class="mono">${p.id}</td><td>${esc(p.name)}<br><span class="muted">${esc(p.fits)}</span></td><td class="num">${p.stock}</td><td class="num">${p.reserved}</td><td class="num">${p.stock - p.reserved}</td><td class="num">${p.used}</td><td class="num">${p.value}</td><td><button type="button" class="btn sm" data-a="restock" data-id="${p.id}">รับเข้า +5</button></td></tr>`).join('')}</tbody></table></div>`; }
+  ${S.parts.map(p => `<tr><td class="mono">${p.id}</td><td>${esc(p.name)}<br><span class="muted">${esc(p.fits)}</span></td><td class="num">${p.stock}</td><td class="num">${p.reserved}</td><td class="num">${p.stock - p.reserved}</td><td class="num">${p.used}</td><td class="num">${p.value}</td><td><button type="button" class="btn sm" data-a="restock" data-id="${p.id}">รับเข้า +5</button></td></tr>`).join('')}</tbody></table></div>
+  <div class="row between"><h2>รับทิ้งขยะอิเล็กทรอนิกส์</h2><button type="button" class="btn sm" data-a="go" data-n="dropoff">บันทึกการรับทิ้ง</button></div>
+  <p class="small muted">รวม ${S.dropoffs.reduce((s, x) => s + Number(x.weight_kg), 0).toFixed(1)} กก. จาก ${S.dropoffs.length} รายการ</p>${dropTable(S.dropoffs)}`; }
+function appsBlock(){ const ap = S.apps.filter(a => a.status === 'pending'); if (!ap.length) return '';
+  return `<h2>ใบสมัครช่างอาสา (${ap.length})</h2>${ap.map(a => `<div class="card"><div class="row between"><h3>${esc(userName(a.user_id))}</h3>${a.senior ? chip(['ช่างสูงวัย','acc']) : ''}</div>
+  <dl class="kv"><dt>ทักษะ</dt><dd>${esc(a.skills)}</dd><dt>ประสบการณ์</dt><dd>${esc(a.experience || '-')}</dd><dt>เวลาที่สะดวก</dt><dd>${esc(a.availability || '-')}</dd><dt>เบอร์โทร</dt><dd class="mono">${esc(S.phones[a.user_id] || '-')}</dd></dl>
+  <p class="small muted">อนุมัติหลังนัดทดสอบทักษะแล้ว บัญชีจะถูกตั้งเป็นช่างทันที</p>
+  <div class="row"><button type="button" class="btn sm pri" data-a="decide" data-id="${a.id}" data-v="1">${S.d.dc === a.id + '1' ? 'กดอีกครั้งเพื่ออนุมัติ' : 'อนุมัติเป็นช่าง'}</button><button type="button" class="btn sm" data-a="decide" data-id="${a.id}" data-v="0">${S.d.dc === a.id + '0' ? 'กดอีกครั้งเพื่อยืนยัน' : 'ไม่อนุมัติ'}</button></div></div>`).join('')}`; }
+function hoursBlock(){ const hr = m => (m / 60).toLocaleString('th-TH', {maximumFractionDigits:1}), d = S.d;
+  return `<h2>ชั่วโมงงานช่างเดือนนี้</h2><div class="tw" tabindex="0"><table><thead><tr><th scope="col">ช่าง</th><th class="num" scope="col">งานซ่อม</th><th class="num" scope="col">สอน (ชม.)</th><th class="num" scope="col">อื่น ๆ (ชม.)</th><th class="num" scope="col">รวม (ชม.)</th></tr></thead><tbody>
+  ${S.hours.map(h => `<tr><td>${esc(h.name)}<br><span class="muted">${esc(h.skill || '')}</span></td><td class="num">${h.repairs} (${hr(h.repair_min)} ชม.)</td><td class="num">${hr(h.workshop_min)}</td><td class="num">${hr(h.other_min)}</td><td class="num"><b>${hr(h.total_min)}</b></td></tr>`).join('') || '<tr><td colspan="5" class="muted">ยังไม่มีข้อมูล</td></tr>'}</tbody></table></div>
+  <details class="card"><summary><b>บันทึกชั่วโมงงานอื่น</b> <span class="small muted">· เช่น จัดคลัง ออกบูธ</span></summary>
+  <div class="grid2"><label class="f">ช่าง<select id="lh-tech" data-m="lhTech">${S.techs.filter(t => t.active).map(t => `<option value="${t.id}" ${d.lhTech === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></label>
+  <label class="f">วันที่<input id="lh-date" type="date" data-m="lhDate" value="${esc(d.lhDate || today())}"></label>
+  <label class="f">จำนวนนาที<input id="lh-min" data-m="lhMin" inputmode="numeric" value="${esc(d.lhMin)}"></label>
+  <label class="f">งานที่ทำ<input id="lh-note" data-m="lhNote" value="${esc(d.lhNote)}"></label></div>
+  <div><button type="button" class="btn sm pri" data-a="logHours">บันทึกชั่วโมง</button></div></details>`; }
+function aWs(){ const d = S.d, list = S.workshops.slice().sort((a, b) => b.date.localeCompare(a.date));
+  return `<h1 tabindex="-1">อบรมและเวิร์กช็อป</h1>
+  <details class="card" ${d.wsOpen ? 'open' : ''}><summary><b>สร้างเวิร์กช็อปใหม่</b></summary>
+  <label class="f">ชื่อเวิร์กช็อป<input id="ws-title" data-m="wTitle" value="${esc(d.wTitle)}" placeholder="เช่น ซ่อมพัดลมเบื้องต้น"></label>
+  <label class="f">รายละเอียด<textarea id="ws-desc" data-m="wDesc">${esc(d.wDesc)}</textarea></label>
+  <div class="grid2"><label class="f">วันที่<input id="ws-date" type="date" data-m="wDate" value="${esc(d.wDate || '')}"></label>
+  <label class="f">เริ่ม<input id="ws-start" type="time" data-m="wStart" value="${esc(d.wStart || '13:00')}"></label>
+  <label class="f">จบ<input id="ws-end" type="time" data-m="wEnd" value="${esc(d.wEnd || '15:00')}"></label>
+  <label class="f">จำนวนที่นั่ง<input id="ws-cap" data-m="wCap" inputmode="numeric" value="${esc(d.wCap || '12')}"></label>
+  <label class="f">สถานที่<input id="ws-loc" data-m="wLoc" value="${esc(d.wLoc || 'ห้องเรียนศูนย์')}"></label>
+  <label class="f">ผู้สอน<select id="ws-ins" data-m="wIns"><option value="">ยังไม่ระบุ</option>${S.techs.filter(t => t.active).map(t => `<option value="${t.id}" ${d.wIns === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></label></div>
+  <div><button type="button" class="btn pri" data-a="createWs" ${S.busy ? 'disabled' : ''}>เปิดรับลงทะเบียน</button></div></details>
+  ${list.map(w => { const ss = seatsOf(w.id), att = ss.filter(x => x.status === 'attended').length;
+    return `<div class="card"><div class="row between"><span class="mono">${w.id}</span>${w.status === 'cancelled' ? chip(['ยกเลิก','bad']) : w.date < today() ? chip(['จบแล้ว','']) : chip(['เปิดรับ','ok'])}</div>
+    <h3>${esc(w.title)}</h3><p class="small muted">${wsWhen(w)} · ${esc(w.location)} · ผู้สอน ${esc(w.instructor_id ? techName(w.instructor_id) : '-')}</p>
+    <p class="small">ลงทะเบียน ${ss.length}/${w.capacity} · เข้าเรียน ${att} คน</p>
+    ${ss.length ? `<details><summary class="small">รายชื่อผู้ลงทะเบียน</summary><ul class="plain small">${ss.map(x => `<li>${esc(userName(x.user_id))} ${x.status === 'attended' ? chip(['เข้าเรียน ' + (x.cert_no || ''),'ok']) : ''}</li>`).join('')}</ul></details>` : ''}
+    ${w.status === 'open' && w.date >= today() ? `<div><button type="button" class="btn sm danger" data-a="cancelWs" data-id="${w.id}">${d.cw === w.id ? 'กดอีกครั้งเพื่อยืนยันการยกเลิก' : 'ยกเลิกเวิร์กช็อป'}</button></div>` : ''}</div>`; }).join('') || `<p class="small muted">ยังไม่มีเวิร์กช็อป</p>`}`; }
 function aPay(){ const bs = S.bookings.filter(b => b.billTotal != null);
   return `<h1 tabindex="-1">งบสนับสนุน</h1><p class="small muted">บริการไม่เก็บเงินจากประชาชน หน้านี้ใช้รายงานมูลค่าอะไหล่ที่ศูนย์จ่ายออก เพื่อประกอบการของบประมาณ</p><div class="tw" tabindex="0"><table><thead><tr><th scope="col">การจอง</th><th scope="col">วันที่</th><th scope="col">รายการ</th><th class="num" scope="col">มูลค่า (บาท)</th></tr></thead><tbody>
   ${bs.map(b => `<tr><td class="mono">${b.id}</td><td>${fdate(b.date)}</td><td>${b.parts.filter(p => p.used && p.source !== 'own').map(p => esc(partName(p.partId)) + ' ×' + p.used).join(', ') || '-'}</td><td class="num">${b.billTotal}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">ยังไม่มีงานที่จบ</td></tr>'}
@@ -571,7 +698,13 @@ const A = {
   /* หน้างาน */
   fillCode(e){ S.d.code = e.id; },
   async scan(){ await openScanner(); },
-  async checkin(){ const id = await rpc('check_in', {p_token:S.d.code || ''}); await refresh(); go('job', id); toast('เช็กอินแล้ว'); },
+  async checkin(){ const code = (S.d.code || '').trim().toUpperCase();
+    if (code.startsWith('WS-')){ const t = await rpc('workshop_checkin', {p_token:code}); await refresh(); S.d.code = ''; return toast('เช็กอินเวิร์กช็อป “' + t + '” แล้ว ออกใบรับรองให้ผู้เรียนแล้ว'); }
+    const id = await rpc('check_in', {p_token:code}); await refresh(); go('job', id); toast('เช็กอินแล้ว'); },
+  async saveDropoff(){ const d = S.d, kg = Number(String(d.dKg || '').replace(',', '.')); if (!(kg > 0)) return toast('กรอกน้ำหนักเป็นกิโลกรัม');
+    const parts = {}; S.parts.forEach(p => { const q = parseInt(d['h_' + p.id]); if (q > 0) parts[p.id] = q; });
+    S.busy = true; try { const id = await rpc('record_dropoff', {p_user:d.dUser || null, p_type:d.dType || TYPES[0], p_weight:kg, p_case:(d.dCase || '').trim().toUpperCase() || null, p_parts:parts, p_note:d.dNote || ''});
+      await refresh(); S.d = {}; toast('บันทึก ' + id + ' แล้ว'); } finally { S.busy = false; } },
   async ack(e){ await rpc('ack_call', {p_booking:e.id}); await refresh(); },
   async startRepair(e){ await rpc('start_repair', {p_booking:e.id}); await refresh(); },
   async takeOver(e){ await rpc('take_over', {p_booking:e.id}); await refresh(); toast('ช่างรับช่วงงานแล้ว'); },
@@ -594,6 +727,26 @@ const A = {
   async saveTargets(){ const d = S.d, keys = ['kpi_users','kpi_savings','kpi_kg','kpi_rating','labor_value'];
     for (const k of keys){ if (d[k] == null) continue; const v = Number(String(d[k]).replace(/,/g, '')); if (!isFinite(v) || v < 0) return toast('กรอกตัวเลขให้ถูกต้อง'); if (String(v) !== S.settings[k]) await rpc('set_setting', {p_key:k, p_value:String(v)}); }
     await refresh(); S.d = {}; toast('บันทึกเป้าหมายแล้ว'); },
+  async joinWs(e){ await rpc('join_workshop', {p_id:e.id}); await refresh(); go('seat', e.id); toast('ลงทะเบียนแล้ว'); },
+  async leaveWs(e){ if (S.d.lw !== e.id){ S.d.lw = e.id; return; } await rpc('leave_workshop', {p_id:e.id}); await refresh(); S.view = null; S.d = {}; toast('ยกเลิกแล้ว คืนที่นั่งให้คนอื่น'); },
+  print(){ window.print(); },
+  volOpen(){ S.d.vol = true; }, volClose(){ S.d = {}; },
+  async applyTech(){ const d = S.d; if ((d.vSkills || '').trim().length < 2) return toast('ระบุทักษะที่ถนัด');
+    await rpc('apply_tech', {p_skills:d.vSkills, p_experience:d.vExp || '', p_availability:d.vAvail || '', p_senior:!!d.vSenior}); await refresh(); S.d = {}; toast('ส่งใบสมัครแล้ว'); },
+  async decide(e){ const k = e.id + e.v; if (S.d.dc !== k){ S.d.dc = k; return; } await rpc('decide_application', {p_id:+e.id, p_approve:e.v === '1'}); await refresh(); S.d = {}; toast(e.v === '1' ? 'อนุมัติแล้ว ตั้งเป็นช่างเรียบร้อย' : 'บันทึกผลแล้ว'); },
+  async logHours(){ const d = S.d, m = parseInt(d.lhMin); if (!(m > 0 && m <= 720)) return toast('กรอกจำนวนนาที 1–720');
+    await rpc('log_hours', {p_tech:d.lhTech || S.techs.find(t => t.active)?.id, p_date:d.lhDate || today(), p_minutes:m, p_note:d.lhNote || ''}); await refresh(); S.d = {}; toast('บันทึกชั่วโมงแล้ว'); },
+  async createWs(){ const d = S.d; S.d.wsOpen = true;
+    if ((d.wTitle || '').trim().length < 3) return toast('ตั้งชื่อเวิร์กช็อป'); if (!d.wDate) return toast('เลือกวันที่');
+    S.busy = true; try { await rpc('create_workshop', {p_title:d.wTitle, p_desc:d.wDesc || '', p_date:d.wDate, p_start:d.wStart || '13:00', p_end:d.wEnd || '15:00', p_location:d.wLoc || 'ห้องเรียนศูนย์', p_capacity:parseInt(d.wCap || '12'), p_instructor:d.wIns || null});
+      await refresh(); S.d = {}; toast('เปิดรับลงทะเบียนแล้ว'); } finally { S.busy = false; } },
+  async cancelWs(e){ if (S.d.cw !== e.id){ S.d.cw = e.id; return; } await rpc('cancel_workshop', {p_id:e.id}); await refresh(); S.d = {}; toast('ยกเลิกและแจ้งผู้ลงทะเบียนแล้ว'); },
+  async joinWait(){ const d = S.d; await rpc('join_waitlist', {p_case:d.caseId, p_date:d.date, p_mode:d.mode}); await refresh(); toast('ลงชื่อรอคิวแล้ว'); },
+  async leaveWait(e){ await rpc('leave_waitlist', {p_id:+e.id}); await refresh(); toast('ยกเลิกการรอแล้ว'); },
+  async bookOffer(e){ const w = S.waitlist.find(x => x.id === +e.id); if (!w) return;
+    await A.startBook({id:w.case_id}); const d = S.d; if (d.mode !== w.mode && w.mode === 'self') return;
+    d.mode = w.mode; d.date = w.date; await bookOptions(); const s = hm(w.offer_slot), o = (d.opts || []).find(x => x.slot === s);
+    if (o && o.ok){ d.slot = s; d.stationId = o.stations.includes(w.offer_station) ? w.offer_station : o.stations[0]; d.step = 2; } },
   async requestDeletion(){ if (S.d.del !== 1){ S.d.del = 1; return; } await rpc('request_deletion', {}); await refresh(); S.d = {}; toast('ส่งคำขอลบข้อมูลแล้ว'); },
   async toggleEarly(){ await rpc('set_setting', {p_key:'allow_early_checkin', p_value:S.settings.allow_early_checkin === 'true' ? 'false' : 'true'}); await refresh(); }
 };
@@ -617,7 +770,7 @@ async function openScanner(){
       if (det){ const r = await det.detect(v); text = r[0]?.rawValue || null; }
       else if (v.videoWidth){ cv.width = v.videoWidth; cv.height = v.videoHeight; cx.drawImage(v, 0, 0); const img = cx.getImageData(0, 0, cv.width, cv.height); text = window.jsQR ? jsQR(img.data, img.width, img.height)?.data || null : null; }
     } catch (e) {}
-    if (text && /^RS-/i.test(text.trim())){ closeScanner(); S.d.code = text.trim(); try { await A.checkin(); } catch (err) { fail(err); } render(); return; }
+    if (text && /^(RS|WS)-/i.test(text.trim())){ closeScanner(); S.d.code = text.trim(); try { await A.checkin(); } catch (err) { fail(err); } render(); return; }
     setTimeout(tick, 250);
   };
   tick();
@@ -669,6 +822,8 @@ setInterval(async () => {
   try { await loadAll(); render(); } catch (e) {}
 }, 20000);
 
+{ const no = new URLSearchParams(location.search).get('cert');
+  if (no){ S.certCheck = {no, loading:true}; sb.rpc('verify_certificate', {p_no:no}).then(({data}) => { S.certCheck = {no, ok:data || null}; render(); }); } }
 sb.auth.onAuthStateChange((event, session) => {
   if (event === 'PASSWORD_RECOVERY') S.recovery = true;
   setTimeout(async () => {

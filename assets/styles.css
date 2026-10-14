@@ -200,3 +200,16 @@ main:focus,h1:focus{outline:none}
 .kpi b{font:700 24px/1.2 var(--font);font-variant-numeric:tabular-nums}
 .bar{height:10px;border-radius:99px;background:var(--sunk);overflow:hidden}
 .bar i{display:block;height:100%;border-radius:99px;background:var(--accent)}
+/* Certificate */
+.cert{background:#fff;color:#0F1F26;border:2px solid #1D4ED8;outline:6px solid #E8EEFD;outline-offset:-14px;border-radius:var(--r);padding:36px 28px;text-align:center;display:flex;flex-direction:column;gap:8px;align-items:center}
+.cert .eyebrow{color:#56666D}
+.cert h2{font-size:22px;color:#1D4ED8;margin:0}
+.cert-name{font:700 26px/1.3 var(--font);border-bottom:1px solid #C9D3D7;padding:4px 16px}
+.cert-title{font:600 19px/1.4 var(--font)}
+.cert-foot{width:100%;margin-top:12px;text-align:left;align-items:flex-end}
+.cert .muted{color:#56666D}
+.qr.sm{width:96px;padding:6px;margin:0}
+@media print{
+  header.top,nav.tabs,.toast,.skip,.no-print,[data-a=back]{display:none!important}
+  body{background:#fff;padding:0} .wrap{max-width:none} .cert{border-color:#1D4ED8;break-inside:avoid;margin-top:40px}
+}

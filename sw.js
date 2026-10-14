@@ -1,5 +1,5 @@
 // ReSpace service worker: เก็บไฟล์หน้าเว็บไว้ให้เปิดได้เร็ว ข้อมูลจาก Supabase ไม่ถูกเก็บ (ดึงสดทุกครั้ง)
-const CACHE = 'respace-v6';
+const CACHE = 'respace-v7';
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'assets/styles.css', 'assets/app.js', 'assets/config.js',
   'assets/supabase.js', 'assets/qrcode.js', 'assets/jsqr.js', 'assets/icon.svg', 'assets/icon-192.png', 'assets/icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(f => new Request(f, {cache:'reload'}))))); self.skipWaiting(); });
