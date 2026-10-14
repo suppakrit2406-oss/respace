@@ -213,3 +213,8 @@ main:focus,h1:focus{outline:none}
   header.top,nav.tabs,.toast,.skip,.no-print,[data-a=back]{display:none!important}
   body{background:#fff;padding:0} .wrap{max-width:none} .cert{border-color:#1D4ED8;break-inside:avoid;margin-top:40px}
 }
+/* Open data chart */
+.odc{display:flex;align-items:flex-end;gap:8px;height:200px;padding:12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow-x:auto}
+.odb{flex:1;min-width:44px;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px}
+.odb i{display:block;width:100%;max-width:48px;background:var(--accent);border-radius:6px 6px 0 0}
+.odb i.sup{background:repeating-linear-gradient(45deg,var(--accent) 0 4px,var(--accent-soft) 4px 8px)}

@@ -55,7 +55,7 @@ const ico = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 
 /* ---------- สถานะของหน้า ---------- */
 let S = {ready:false, session:null, me:null, tab:'home', view:null, d:{}, busy:false, auth:{mode:'login'}, photoUrls:{}};
-const blank = () => ({workshops:[],seats:[],apps:[],dropoffs:[],waitlist:[],hours:[],phones:{},requests:[],users:[],techs:[],stations:[],tools:[],parts:[],slots:[],kb:[],settings:{},devices:[],cases:[],assessments:[],chats:[],bookings:[],results:[],reviews:[],notifs:[],log:[]});
+const blank = () => ({ai:[],workshops:[],seats:[],apps:[],dropoffs:[],waitlist:[],hours:[],phones:{},requests:[],users:[],techs:[],stations:[],tools:[],parts:[],slots:[],kb:[],settings:{},devices:[],cases:[],assessments:[],chats:[],bookings:[],results:[],reviews:[],notifs:[],log:[]});
 Object.assign(S, blank());
 const by = (l, id) => S[l].find(x => x.id === id);
 const role = () => S.me?.role || 'citizen';
@@ -101,9 +101,10 @@ async function loadAll(){
     q(sb.from('tech_applications').select('*').order('created_at', {ascending:false})),
     staff || true ? q(sb.from('ewaste_dropoffs').select('*').order('created_at', {ascending:false}).limit(200)) : Promise.resolve([]),
     staff ? q(sb.from('dropoff_parts').select('*')) : Promise.resolve([]),
-    q(sb.from('waitlist').select('*').order('created_at'))
+    q(sb.from('waitlist').select('*').order('created_at')),
+    staff ? q(sb.from('ai_assessments').select('*')) : Promise.resolve([])
   ]);
-  const [techs, stations, tools, parts, slots, kb, settings, devices, hist, cases, photos, ass, aparts, atools, akb, chats, bookings, btools, bparts, results, reviews, notifs, users, log, contacts, requests, workshops, seats, apps, dropoffs, dparts, waitlist] = R;
+  const [techs, stations, tools, parts, slots, kb, settings, devices, hist, cases, photos, ass, aparts, atools, akb, chats, bookings, btools, bparts, results, reviews, notifs, users, log, contacts, requests, workshops, seats, apps, dropoffs, dparts, waitlist, ai] = R; S.ai = ai;
   Object.assign(S, {workshops, seats, apps, dropoffs: dropoffs.map(x => ({...x, parts: dparts.filter(p => p.dropoff_id === x.id)})), waitlist});
   S.phones = Object.fromEntries(contacts.map(c => [c.user_id, c.phone])); S.requests = requests;
   Object.assign(S, {
@@ -129,6 +130,7 @@ async function loadAll(){
     notifs, users, log
   });
   if (admin) await loadKpi();
+  if (S.aiEnabled == null){ S.aiEnabled = false; sb.functions.invoke('ai-triage', {body:{ping:true}}).then(({data}) => { S.aiEnabled = !!data?.enabled; render(); }).catch(() => {}); }
   if (staff){ const n = new Date(); try { S.hours = await rpc('hours_report', {p_from:dkey(new Date(n.getFullYear(), n.getMonth(), 1)), p_to:dkey(n)}); } catch (e) { S.hours = []; } }
 }
 function kpiRange(){ const now = new Date(), y = now.getFullYear(), m = now.getMonth();
@@ -162,12 +164,35 @@ function vAuth(){
     ${signup ? '' : `<button type="button" class="link small" data-a="authMode" data-id="forgot">ลืมรหัสผ่าน</button>`}
   </form>
   ${a.msg ? `<div class="banner info" role="status">${esc(a.msg)}</div>` : ''}
-  ${S.pub ? `<div class="card"><h2>ผลงานของศูนย์</h2><div class="stat"><div><b>${S.pub.done}</b><span class="small muted">งานซ่อมที่จบ</span></div><div><b>${S.pub.done ? Math.round(S.pub.ok / S.pub.done * 100) + '%' : '–'}</b><span class="small muted">ซ่อมสำเร็จ</span></div><div><b>${Number(S.pub.kg).toFixed(1)} กก.</b><span class="small muted">ขยะอิเล็กทรอนิกส์ที่ลดได้</span></div><div><b>${baht(S.pub.value)}</b><span class="small muted">มูลค่าอะไหล่ที่ประชาชนไม่ต้องจ่าย</span></div></div></div>` : ''}
+  ${S.pub ? `<div class="card"><h2>ผลงานของศูนย์</h2><div class="stat"><div><b>${S.pub.done}</b><span class="small muted">งานซ่อมที่จบ</span></div><div><b>${S.pub.done ? Math.round(S.pub.ok / S.pub.done * 100) + '%' : '–'}</b><span class="small muted">ซ่อมสำเร็จ</span></div><div><b>${Number(S.pub.kg).toFixed(1)} กก.</b><span class="small muted">ขยะอิเล็กทรอนิกส์ที่ลดได้</span></div><div><b>${baht(S.pub.value)}</b><span class="small muted">มูลค่าอะไหล่ที่ประชาชนไม่ต้องจ่าย</span></div></div><div><button type="button" class="link" data-a="openData">ดูข้อมูลเปิด (Open Data) และดาวน์โหลด →</button></div></div>` : ''}
   ${signup ? '' : `<div class="card"><h2>บัญชีทดลอง</h2><p class="small muted">สำหรับสาธิตเท่านั้น รหัสผ่านทุกบัญชี <span class="mono">ReSpace#Demo2026</span></p>
   <div class="opt">${DEMO.map(([e,t]) => `<button type="button" data-a="demoLogin" data-id="${e}">${t}</button>`).join('')}</div></div>`}
   </div>`;
 }
 
+const OD = {cases:'เคสที่ส่งเข้ามา', repairs:'งานซ่อมที่จบ', repaired_ok:'ซ่อมสำเร็จ', ewaste_reduced_kg:'ขยะที่ลดได้ (กก.)', ewaste_dropoff_kg:'ขยะที่รับทิ้งถูกวิธี (กก.)', trained:'ผู้ผ่านการอบรม', reviews:'รีวิว', avg_rating:'คะแนนเฉลี่ย'};
+const odv = v => v == null ? '–' : typeof v === 'number' ? v.toLocaleString('th-TH') : String(v);
+const odn = v => typeof v === 'number' ? v : v === '<5' ? 2 : 0;
+function odBars(rows, key){ const max = Math.max(5, ...rows.map(r => odn(r[key])));
+  return `<div class="odc" role="img" aria-label="${OD[key]} รายเดือน: ${rows.map(r => r.month + ' ' + odv(r[key])).join(', ')}">${rows.map(r => { const v = r[key], h = Math.round(odn(v) / max * 100);
+    return `<div class="odb"><span class="small">${odv(v)}</span><i class="${v === '<5' ? 'sup' : ''}" style="height:${Math.max(h, 2)}%"></i><span class="small muted">${new Date(r.month + '-01T00:00').toLocaleDateString('th-TH', {month:'short', year:'2-digit'})}</span></div>`; }).join('')}</div>`; }
+function vOpen(){ const o = S.open;
+  if (!o) return `<p class="muted" role="status">กำลังโหลดข้อมูลเปิด…</p>`;
+  const t = o.totals || {}, m = o.monthly || [];
+  return `<div><button type="button" class="link" data-a="closeOpen">← กลับไปหน้าแอป</button></div>
+  <div class="hero"><span class="pill">ข้อมูลเปิด · ${esc(o.license)}</span><h1 tabindex="-1">สถิติบริการ ReSpace</h1><p class="muted">${esc(o.note)} · ปรับปรุงล่าสุด ${new Date(o.generated_at).toLocaleString('th-TH')}</p></div>
+  <div class="stat">${Object.keys(OD).map(k => `<div><b>${odv(t[k])}</b><span class="small muted">${OD[k]}</span></div>`).join('')}</div>
+  <h2>งานซ่อมที่จบรายเดือน</h2>${odBars(m, 'repairs')}
+  <h2>เคสที่ส่งเข้ามารายเดือน</h2>${odBars(m, 'cases')}
+  <h2>ตารางข้อมูลรายเดือน</h2><div class="tw" tabindex="0"><table><caption class="sr">สถิติรายเดือน</caption><thead><tr><th scope="col">เดือน</th>${Object.keys(OD).map(k => `<th scope="col" class="num">${OD[k]}</th>`).join('')}</tr></thead><tbody>
+  ${m.map(r => `<tr><th scope="row">${r.month}</th>${Object.keys(OD).map(k => `<td class="num">${odv(r[k])}</td>`).join('')}</tr>`).join('') || '<tr><td colspan="9" class="muted">ยังไม่มีข้อมูล</td></tr>'}</tbody></table></div>
+  <h2>แยกตามประเภทเครื่อง</h2><div class="tw" tabindex="0"><table><thead><tr><th scope="col">ประเภท</th><th class="num" scope="col">งานซ่อมที่จบ</th><th class="num" scope="col">ซ่อมสำเร็จ</th></tr></thead><tbody>
+  ${(o.by_device_type || []).map(r => `<tr><td>${esc(r.device_type)}</td><td class="num">${odv(r.repairs)}</td><td class="num">${odv(r.repaired_ok)}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">ยังไม่มีข้อมูล</td></tr>'}</tbody></table></div>
+  <div class="card"><h2>ดาวน์โหลด</h2><p class="small muted">นำไปใช้ต่อได้อย่างเสรีภายใต้สัญญาอนุญาต ${esc(o.license)} โปรดอ้างอิง “${esc(o.dataset)}”</p>
+  <div class="row"><button type="button" class="btn sm pri" data-a="odDl" data-id="csv">ดาวน์โหลด CSV</button><button type="button" class="btn sm" data-a="odDl" data-id="json">ดาวน์โหลด JSON</button></div>
+  <details><summary class="small">คำอธิบายข้อมูล</summary><ul class="plain small"><li>month: เดือน (ปี ค.ศ.-เดือน) ตามเวลาประเทศไทย</li>${Object.keys(OD).map(k => `<li>${k}: ${OD[k]}</li>`).join('')}<li>ขยะที่ลดได้ ประมาณจากน้ำหนักมาตรฐานของเครื่องแต่ละประเภทที่ซ่อมสำเร็จ</li><li>ขยะที่รับทิ้ง ใช้น้ำหนักชั่งจริง และไม่นับรวมในขยะที่ลดได้</li><li>"&lt;5" หมายถึงมีจำนวน 1–4 ซ่อนไว้เพื่อป้องกันการระบุตัวบุคคล</li></ul></details></div>`; }
+function odCsv(){ const o = S.open, ks = Object.keys(OD), q2 = v => v == null ? '' : String(v);
+  return '﻿' + [['month', ...ks].join(','), ...(o.monthly || []).map(r => [r.month, ...ks.map(k => q2(r[k]))].join(','))].join('\r\n'); }
 function certCheck(){ const c = S.certCheck; if (!c) return '';
   return c.loading ? `<p class="small muted" role="status">กำลังตรวจสอบใบรับรอง…</p>` : c.ok
     ? `<div class="banner ok" role="status"><b>ใบรับรองถูกต้อง เลขที่ ${esc(c.ok.cert_no)}</b><span class="small">${esc(c.ok.name)} ผ่านการอบรม “${esc(c.ok.title)}” วันที่ ${new Date(c.ok.date + 'T00:00').toLocaleDateString('th-TH', {dateStyle:'long'})} ออกโดย${ORG}</span></div>`
@@ -322,6 +347,7 @@ function vTriage(){ const d = S.d, st = d.step || 1, dev = by('devices', d.devic
     : `<div class="banner ok"><b>ไม่พบสัญญาณเสี่ยงสูงจากข้อมูลเบื้องต้น</b><span class="small">ยังซ่อมเองไม่ได้จนกว่าช่างจะประเมินและอนุมัติขอบเขตงาน</span></div>`;
   return head + `<h2>ผลคัดกรองเบื้องต้น</h2>${ban}<div class="card"><dl class="kv"><dt>เครื่อง</dt><dd>${esc(devName(dev))}</dd><dt>อาการ</dt><dd>${esc(d.syms.join(', '))}</dd><dt>รายละเอียด</dt><dd>${esc(d.detail || '-')}</dd></dl></div>
     <p class="small muted">ระบบคัดกรองซ้ำที่เซิร์ฟเวอร์เมื่อส่งเคส</p>
+    ${S.aiEnabled ? `<div class="card"><label class="row small"><input type="checkbox" id="t-ai" data-m="aiOk" ${d.aiOk ? 'checked' : ''}> <span class="grow">ให้ AI ช่วยวิเคราะห์รูปและอาการเบื้องต้นเพื่อให้ช่างตอบเร็วขึ้น (ไม่บังคับ)</span></label><p class="small muted">รูปและอาการจะถูกส่งไปประมวลผลที่ผู้ให้บริการ AI (Anthropic) โดยไม่มีชื่อหรือเบอร์โทรของคุณ ผลใช้ประกอบการประเมินของช่างเท่านั้น ช่างยังเป็นผู้ตัดสิน</p></div>` : ''}
     <div class="row"><button type="button" class="btn" data-a="tPrev">ย้อนกลับ</button><button type="button" class="btn pri" data-a="submitCase" ${S.busy ? 'disabled' : ''}>${S.busy ? 'กำลังส่ง…' : 'ส่งให้ช่างประเมิน'}</button></div>`;
 }
 
@@ -429,6 +455,7 @@ function vAssess(v){ const c = by('cases', v.id), d = S.d, dev = by('devices', c
   const canAssess = ['waiting','needinfo'].includes(c.status);
   return `<div class="row between"><h1 tabindex="-1">ประเมิน ${c.id}</h1>${chip(RISK[c.risk])}</div>
   <div class="card"><dl class="kv"><dt>เครื่อง</dt><dd>${esc(devName(dev))} · ซื้อปี ${esc(dev?.year || '-')}</dd><dt>อาการ</dt><dd>${esc(c.syms.join(', '))}</dd><dt>รายละเอียด</dt><dd>${esc(c.detail || '-')}</dd><dt>เริ่มเป็น</dt><dd>${esc(c.since || '-')}</dd><dt>ตกน้ำ / ตกพื้น</dt><dd>${esc(c.dropped)}</dd><dt>ผู้แจ้ง</dt><dd>${esc(userName(c.userId))} <span class="small muted">(เบอร์โทรซ่อนไว้ ติดต่อผ่านแชต)</span></dd><dt>ภาพ</dt>${photoStrip(c)}</dl></div>
+  ${aiCard(c)}
   ${canAssess ? `<div class="card"><h2 id="lv-h">ผลประเมิน</h2><div class="opt" role="group" aria-labelledby="lv-h">${Object.keys(LEVEL).map(k => `<button type="button" data-a="aLevel" data-id="${k}" aria-pressed="${d.level === k}" ${k === 'self' && c.risk === 'high' ? 'disabled' : ''}>${LEVEL[k][0]}</button>`).join('')}</div>
   ${c.risk === 'high' ? `<p class="small muted">เคสเสี่ยงสูง ระบบล็อกไม่ให้เลือก “ซ่อมเองได้”</p>` : ''}
   <label class="f">สาเหตุที่น่าจะเป็น<input id="a-cause" data-m="cause" value="${esc(d.cause)}"></label>
@@ -439,6 +466,16 @@ function vAssess(v){ const c = by('cases', v.id), d = S.d, dev = by('devices', c
   ${d.level === 'self' ? `<h3 id="aa-h">เครื่องมือที่ผู้แจ้งเพิ่มเองได้</h3><div class="opt" role="group" aria-labelledby="aa-h">${S.tools.filter(t => !d.tools.includes(t.id)).map(t => `<button type="button" data-a="aAllow" data-id="${t.id}" aria-pressed="${d.allowed.includes(t.id)}">${esc(t.name)}</button>`).join('')}</div>` : ''}
   <div class="row"><button type="button" class="btn pri" data-a="submitAssess" data-id="${c.id}" ${S.busy ? 'disabled' : ''}>ส่งผลประเมิน</button><button type="button" class="btn" data-a="needInfo" data-id="${c.id}">ขอข้อมูลเพิ่ม</button></div></div>`
   : (lastA(c.id) ? assessCard(lastA(c.id)) : '')}${chatBox(c)}`; }
+function aiCard(c){ const a = S.ai.find(x => x.case_id === c.id); if (!a) return '';
+  const head = `<div class="row between"><h2>ความเห็นเบื้องต้นจาก AI</h2>${chip(['ใช้ประกอบเท่านั้น','acc'])}</div>`;
+  if (a.status === 'pending') return `<div class="card">${head}<p class="small muted" role="status">กำลังวิเคราะห์… ผู้แจ้งยินยอมให้ใช้ AI กับเคสนี้</p><div><button type="button" class="btn sm" data-a="aiRun" data-id="${c.id}">วิเคราะห์อีกครั้ง</button></div></div>`;
+  if (a.status !== 'done') return `<div class="card">${head}<p class="small muted">${a.status === 'error' ? 'วิเคราะห์ไม่สำเร็จ' : 'ยังไม่เปิดใช้'} ${esc(a.error || '')}</p>${S.aiEnabled ? `<div><button type="button" class="btn sm" data-a="aiRun" data-id="${c.id}">ลองอีกครั้ง</button></div>` : ''}</div>`;
+  const causes = Array.isArray(a.likely_causes) ? a.likely_causes : [], parts = Array.isArray(a.parts) ? a.parts : [];
+  return `<div class="card">${head}<p>${esc(a.summary || '')}</p>
+  ${a.hazards.length ? `<div class="banner bad small" role="status"><b>สัญญาณที่ควรตรวจ</b><span>${a.hazards.map(esc).join(' · ')}</span></div>` : ''}
+  <dl class="kv"><dt>สาเหตุที่เป็นไปได้</dt><dd>${causes.map(x => `${esc(x.cause)} <span class="muted">(${esc(x.confidence || '-')})</span>`).join('<br>') || '-'}</dd>
+  <dt>อะไหล่ที่อาจใช้</dt><dd>${parts.map(esc).join(', ') || '-'}</dd><dt>ซ่อมเองได้?</dt><dd>${a.self_repair_ok ? 'AI เห็นว่าอาจทำได้ ช่างต้องยืนยัน' : 'AI แนะนำให้ช่างทำ'}</dd></dl>
+  <p class="small muted">AI อาจผิดพลาด ช่างเป็นผู้ประเมินและรับผิดชอบผลขั้นสุดท้าย AI ปรับความเสี่ยงได้เฉพาะให้สูงขึ้น</p></div>`; }
 function vJobs(){ const bs = S.bookings.filter(b => ['confirmed','checkedin','inprogress'].includes(b.status) || (b.status === 'completed' && by('cases', b.caseId)?.status !== 'closed')).sort((a, b) => (a.date + a.slot).localeCompare(b.date + b.slot));
   const early = S.settings.allow_early_checkin === 'true', next = bs.find(b => b.status === 'confirmed');
   return `<h1 tabindex="-1">งานหน้างาน</h1><div class="card"><h2>เช็กอินผู้รับบริการ</h2><div class="row"><input id="ci-code" class="grow mono" data-m="code" aria-label="รหัสเช็กอิน" placeholder="สแกนหรือพิมพ์รหัส RS- หรือ WS-" value="${esc(S.d.code)}" data-enter="checkin"><button type="button" class="btn pri" data-a="checkin">เช็กอิน</button></div>
@@ -490,7 +527,7 @@ function aDash(){ const today = dkey(new Date());
   <div><b>${S.parts.filter(p => p.stock - p.reserved <= 1).length}</b><span class="small muted">อะไหล่ใกล้หมด</span></div>
   <div><b>${S.apps.filter(a => a.status === 'pending').length}</b><span class="small muted">ใบสมัครช่างรอพิจารณา</span></div>
   <div><b>${S.waitlist.filter(w => ['waiting','offered'].includes(w.status)).length}</b><span class="small muted">ผู้รอคิวสำรอง</span></div></div>
-  <div><button type="button" class="link" data-a="go" data-n="pay">ดูรายละเอียดงบอะไหล่ที่สนับสนุน →</button></div>
+  <div class="row"><button type="button" class="link" data-a="go" data-n="pay">ดูรายละเอียดงบอะไหล่ที่สนับสนุน →</button><button type="button" class="link" data-a="openData">หน้าข้อมูลเปิดสาธารณะ →</button></div>
   ${suspended.length ? `<h2>ผู้ใช้ที่ถูกพักสิทธิ์</h2>${suspended.map(u => `<div class="card"><div class="row between"><span>${esc(u.full_name)} · ไม่มาตามนัด ${u.noshow_count} ครั้ง</span><button type="button" class="btn sm" data-a="resetNoshow" data-id="${u.id}">คืนสิทธิ์</button></div></div>`).join('')}` : ''}
   ${S.reviews.length ? `<h2>รีวิวล่าสุด</h2>` + S.reviews.slice(-5).reverse().map(r => `<div class="card"><p><span aria-label="${r.stars} ดาว">${'★'.repeat(r.stars)}</span> ${esc(r.text)}</p><span class="small muted mono">${r.bookingId}</span></div>`).join('') : ''}`; }
 const RANGES = [['fy','ปีงบนี้'],['month','เดือนนี้'],['all','ทั้งหมด']];
@@ -646,6 +683,7 @@ const A = {
       for (const k of ['a','b','c']){ const p = d.photos[k]; let path = 'demo';
         if (p && p !== 'demo'){ path = `${uid}/${id}/${k}.jpg`; const {error} = await sb.storage.from('case-photos').upload(path, await dataUrlBlob(p), {contentType:'image/jpeg', upsert:true}); if (error) throw error; }
         const {error} = await sb.from('case_photos').insert({case_id:id, kind:k, path}); if (error) throw error; }
+      if (d.aiOk && S.aiEnabled){ try { await rpc('ai_consent', {p_case:id}); sb.functions.invoke('ai-triage', {body:{case_id:id}}).catch(() => {}); } catch (e) {} }
       await refresh();
       if (d.direct) return A.startBook({id});
       go('case', id); toast('ส่งเคสเข้าคิวช่างแล้ว');
@@ -747,6 +785,11 @@ const A = {
     await A.startBook({id:w.case_id}); const d = S.d; if (d.mode !== w.mode && w.mode === 'self') return;
     d.mode = w.mode; d.date = w.date; await bookOptions(); const s = hm(w.offer_slot), o = (d.opts || []).find(x => x.slot === s);
     if (o && o.ok){ d.slot = s; d.stationId = o.stations.includes(w.offer_station) ? w.offer_station : o.stations[0]; d.step = 2; } },
+  closeOpen(){ history.replaceState(null, '', location.pathname); S.openMode = false; },
+  odDl(e){ const csv = e.id === 'csv', blob = new Blob([csv ? odCsv() : JSON.stringify(S.open, null, 2)], {type:csv ? 'text/csv;charset=utf-8' : 'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'respace-open-data.' + e.id; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); },
+  openData(){ history.replaceState(null, '', location.pathname + '?open'); S.openMode = true; loadOpen(); },
+  async aiRun(e){ const {data, error} = await sb.functions.invoke('ai-triage', {body:{case_id:e.id}}); if (error) toast('AI วิเคราะห์ไม่สำเร็จ ลองใหม่ภายหลัง'); await refresh(); },
   async requestDeletion(){ if (S.d.del !== 1){ S.d.del = 1; return; } await rpc('request_deletion', {}); await refresh(); S.d = {}; toast('ส่งคำขอลบข้อมูลแล้ว'); },
   async toggleEarly(){ await rpc('set_setting', {p_key:'allow_early_checkin', p_value:S.settings.allow_early_checkin === 'true' ? 'false' : 'true'}); await refresh(); }
 };
@@ -783,7 +826,8 @@ let lastViewKey = '';
 function render(){
   const main = $('#main'), user = $('#user'), tabs = $('#tabs');
   if (!S.ready){ main.innerHTML = `<p class="muted" role="status">กำลังโหลด…</p>`; return; }
-  if (S.recovery && S.session){ user.innerHTML = ''; tabs.innerHTML = ''; $('nav.tabs').hidden = true; main.innerHTML = vNewPw(); }
+  if (S.openMode){ $('nav.tabs').hidden = true; tabs.innerHTML = ''; if (!S.session) user.innerHTML = ''; main.innerHTML = vOpen(); }
+  else if (S.recovery && S.session){ user.innerHTML = ''; tabs.innerHTML = ''; $('nav.tabs').hidden = true; main.innerHTML = vNewPw(); }
   else if (!S.session || !S.me){ user.innerHTML = ''; tabs.innerHTML = ''; $('nav.tabs').hidden = true; main.innerHTML = vAuth(); }
   else {
     $('nav.tabs').hidden = false;
@@ -822,6 +866,8 @@ setInterval(async () => {
   try { await loadAll(); render(); } catch (e) {}
 }, 20000);
 
+function loadOpen(){ sb.rpc('open_data').then(({data}) => { S.open = data; render(); }); }
+if (new URLSearchParams(location.search).has('open')){ S.openMode = true; loadOpen(); }
 { const no = new URLSearchParams(location.search).get('cert');
   if (no){ S.certCheck = {no, loading:true}; sb.rpc('verify_certificate', {p_no:no}).then(({data}) => { S.certCheck = {no, ok:data || null}; render(); }); } }
 sb.auth.onAuthStateChange((event, session) => {
