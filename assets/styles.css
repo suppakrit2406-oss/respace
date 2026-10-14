@@ -225,5 +225,5 @@ main:focus,h1:focus{outline:none}
 .tour-hi{position:relative;z-index:16;outline:3px solid var(--accent)!important;outline-offset:3px;border-radius:14px;box-shadow:0 0 0 9999px rgba(10,20,25,0)}
 nav.tabs:has(.tour-hi){z-index:16}
 header.top:has(.tour-hi){z-index:16}
-.tour.bottom{align-items:flex-end;padding-bottom:calc(var(--nav-h) + 40px + env(safe-area-inset-bottom,0px))}
+.tour.bottom{align-items:flex-end;padding-bottom:calc(var(--nav-h) + 22px + env(safe-area-inset-bottom,0px))}
 body.touring{padding-bottom:100vh}

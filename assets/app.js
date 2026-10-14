@@ -865,11 +865,12 @@ function tourHtml(){ const t = S.tour; if (!t) return ''; const steps = TOUR[rol
 function paintTour(){ let box = $('#tour'); document.querySelectorAll('.tour-hi').forEach(e => e.classList.remove('tour-hi')); document.body.classList.toggle('touring', !!(S.tour && S.session));
   if (!S.tour || !S.session || !S.me){ if (box) box.remove(); return; }
   if (!box){ box = document.createElement('div'); box.id = 'tour'; box.className = 'tour'; document.body.appendChild(box); }
-  box.innerHTML = tourHtml(); const st = TOUR[role()][S.tour.i], el = st.sel && $(st.sel);
-  box.classList.remove('bottom');
-  if (el){ el.classList.add('tour-hi'); el.scrollIntoView({block:'center', behavior:'auto'});
-    const r = el.getBoundingClientRect(), card = box.firstElementChild.getBoundingClientRect();
-    if (r.top < card.bottom + 12 && r.bottom > card.top - 12){ box.classList.add('bottom'); if (getComputedStyle(el).position !== 'fixed' && !el.closest('nav,header')) window.scrollBy(0, r.top - 84); } }
+  box.innerHTML = tourHtml(); const st = TOUR[role()][S.tour.i], el = st.sel && $(st.sel), key = role() + S.tour.i;
+  if (el) el.classList.add('tour-hi');
+  if (box.dataset.step !== key){ box.dataset.step = key; box.classList.remove('bottom');
+    if (el){ el.scrollIntoView({block:'center', behavior:'auto'});
+      const r = el.getBoundingClientRect(), card = box.firstElementChild.getBoundingClientRect();
+      if (r.top < card.bottom + 12 && r.bottom > card.top - 12){ box.classList.add('bottom'); if (!el.closest('nav,header')) window.scrollBy(0, r.top - 76); } } }
   if (!box.contains(document.activeElement)) $('#tour-next')?.focus(); }
 const HELP = {
   citizen:{t:'สำหรับประชาชน', steps:[['ส่งเคสตรวจเบื้องต้น','หน้าแรก → ตรวจเบื้องต้น → เลือกเครื่อง ถ่ายรูป 3 มุม เลือกอาการ แล้วส่ง ระบบคัดกรองความเสี่ยงทันที ช่างตอบภายใน 24 ชั่วโมง'],
