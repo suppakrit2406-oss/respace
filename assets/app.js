@@ -862,7 +862,7 @@ function tourHtml(){ const t = S.tour; if (!t) return ''; const steps = TOUR[rol
   <h2 id="tour-t">${esc(st.t)}</h2><p id="tour-b">${esc(st.b)}</p>
   <div class="steps" aria-hidden="true">${steps.map((_, i) => `<i class="${i <= t.i ? 'on' : ''}"></i>`).join('')}</div>
   <div class="row"><button type="button" class="btn" data-a="tourPrev" ${t.i ? '' : 'disabled'}>ย้อนกลับ</button><button type="button" class="btn pri grow" id="tour-next" data-a="${last ? 'tourEnd' : 'tourNext'}">${last ? 'เริ่มใช้งาน' : 'ถัดไป'}</button></div></div>`; }
-function paintTour(){ let box = $('#tour'); document.querySelectorAll('.tour-hi').forEach(e => e.classList.remove('tour-hi'));
+function paintTour(){ let box = $('#tour'); document.querySelectorAll('.tour-hi').forEach(e => e.classList.remove('tour-hi')); document.body.classList.toggle('touring', !!(S.tour && S.session));
   if (!S.tour || !S.session || !S.me){ if (box) box.remove(); return; }
   if (!box){ box = document.createElement('div'); box.id = 'tour'; box.className = 'tour'; document.body.appendChild(box); }
   box.innerHTML = tourHtml(); const st = TOUR[role()][S.tour.i], el = st.sel && $(st.sel);

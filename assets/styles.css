@@ -226,3 +226,4 @@ main:focus,h1:focus{outline:none}
 nav.tabs:has(.tour-hi){z-index:16}
 header.top:has(.tour-hi){z-index:16}
 .tour.bottom{align-items:flex-end;padding-bottom:calc(var(--nav-h) + 40px + env(safe-area-inset-bottom,0px))}
+body.touring{padding-bottom:100vh}
