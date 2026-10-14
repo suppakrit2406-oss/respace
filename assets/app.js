@@ -56,7 +56,7 @@ const ico = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 
 /* ---------- สถานะของหน้า ---------- */
 let S = {ready:false, session:null, me:null, tab:'home', view:null, d:{}, busy:false, auth:{mode:'login'}, photoUrls:{}};
-const blank = () => ({ai:[],workshops:[],seats:[],apps:[],dropoffs:[],waitlist:[],hours:[],phones:{},requests:[],users:[],techs:[],stations:[],tools:[],parts:[],slots:[],kb:[],settings:{},devices:[],cases:[],assessments:[],chats:[],bookings:[],results:[],reviews:[],notifs:[],log:[]});
+const blank = () => ({ai:[],partners:[],feedback:[],workshops:[],seats:[],apps:[],dropoffs:[],waitlist:[],hours:[],phones:{},requests:[],users:[],techs:[],stations:[],tools:[],parts:[],slots:[],kb:[],settings:{},devices:[],cases:[],assessments:[],chats:[],bookings:[],results:[],reviews:[],notifs:[],log:[]});
 Object.assign(S, blank());
 const by = (l, id) => S[l].find(x => x.id === id);
 const role = () => S.me?.role || 'citizen';
@@ -103,9 +103,10 @@ async function loadAll(){
     staff || true ? q(sb.from('ewaste_dropoffs').select('*').order('created_at', {ascending:false}).limit(200)) : Promise.resolve([]),
     staff ? q(sb.from('dropoff_parts').select('*')) : Promise.resolve([]),
     q(sb.from('waitlist').select('*').order('created_at')),
-    staff ? q(sb.from('ai_assessments').select('*')) : Promise.resolve([])
+    staff ? q(sb.from('ai_assessments').select('*')) : Promise.resolve([]),
+    q(sb.from('partners').select('*').order('id')), q(sb.from('feedback').select('*').order('created_at', {ascending:false}).limit(500))
   ]);
-  const [techs, stations, tools, parts, slots, kb, settings, devices, hist, cases, photos, ass, aparts, atools, akb, chats, bookings, btools, bparts, results, reviews, notifs, users, log, contacts, requests, workshops, seats, apps, dropoffs, dparts, waitlist, ai] = R; S.ai = ai;
+  const [techs, stations, tools, parts, slots, kb, settings, devices, hist, cases, photos, ass, aparts, atools, akb, chats, bookings, btools, bparts, results, reviews, notifs, users, log, contacts, requests, workshops, seats, apps, dropoffs, dparts, waitlist, ai, partners, feedback] = R; S.ai = ai; S.partners = partners; S.feedback = feedback;
   Object.assign(S, {workshops, seats, apps, dropoffs: dropoffs.map(x => ({...x, parts: dparts.filter(p => p.dropoff_id === x.id)})), waitlist});
   S.phones = Object.fromEntries(contacts.map(c => [c.user_id, c.phone])); S.requests = requests;
   Object.assign(S, {
@@ -166,7 +167,7 @@ function vAuth(){
   </form>
   ${a.msg ? `<div class="banner info" role="status">${esc(a.msg)}</div>` : ''}
   ${S.pub ? `<div class="card"><h2>ผลงานของศูนย์</h2><div class="stat"><div><b>${S.pub.done}</b><span class="small muted">งานซ่อมที่จบ</span></div><div><b>${S.pub.done ? Math.round(S.pub.ok / S.pub.done * 100) + '%' : '–'}</b><span class="small muted">ซ่อมสำเร็จ</span></div><div><b>${Number(S.pub.kg).toFixed(1)} กก.</b><span class="small muted">ขยะอิเล็กทรอนิกส์ที่ลดได้</span></div><div><b>${baht(S.pub.value)}</b><span class="small muted">มูลค่าอะไหล่ที่ประชาชนไม่ต้องจ่าย</span></div></div><div><button type="button" class="link" data-a="openData">ดูข้อมูลเปิด (Open Data) และดาวน์โหลด →</button></div></div>` : ''}
-  <div><button type="button" class="link" data-a="helpOpen">วิธีใช้งานและคำถามที่พบบ่อย →</button></div>
+  <div class="stack" style="gap:0"><button type="button" class="link" data-a="helpOpen">วิธีใช้งานและคำถามที่พบบ่อย →</button><button type="button" class="link" data-a="joinOpen">ร่วมเป็นช่างและพันธมิตร →</button><button type="button" class="link" data-a="fbOpen">ส่งความคิดเห็น →</button></div>
   ${signup ? '' : `<div class="card"><h2>บัญชีทดลอง</h2><p class="small muted">สำหรับสาธิตเท่านั้น รหัสผ่านทุกบัญชี <span class="mono">ReSpace#Demo2026</span></p>
   <div class="opt">${DEMO.map(([e,t]) => `<button type="button" data-a="demoLogin" data-id="${e}">${t}</button>`).join('')}</div></div>`}
   </div>`;
@@ -293,14 +294,25 @@ function waitBlock(){ const ws = S.waitlist.filter(w => w.user_id === S.me.id &&
   return ws.map(w => w.status === 'offered'
     ? `<div class="banner ok" role="status"><b>มีคิวว่างให้คุณ: ${fdate(w.date)} ${hm(w.offer_slot)} น.</b><span class="small">เคส ${w.case_id} · กันไว้ถึง ${new Date(new Date(w.offered_at).getTime() + hold * 36e5).toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'})} น.</span><div class="row"><button type="button" class="btn sm pri" data-a="bookOffer" data-id="${w.id}">จองเลย</button><button type="button" class="btn sm" data-a="leaveWait" data-id="${w.id}">ไม่ต้องการแล้ว</button></div></div>`
     : `<div class="card"><div class="row between"><span class="small">รอคิวว่าง ${fdate(w.date)} · เคส ${w.case_id}</span>${chip(['ลงชื่อรอ','warn'])}</div><div><button type="button" class="btn sm" data-a="leaveWait" data-id="${w.id}">ยกเลิกการรอ</button></div></div>`).join(''); }
+const PKIND = {volunteer:['ช่างอาสา','มีทักษะซ่อม อยากช่วยคนในชุมชน','ได้เกียรติบัตรและบันทึกชั่วโมงจิตอาสา'],
+  senior:['ช่างสูงวัย','อายุ 60 ปีขึ้นไป มีประสบการณ์ช่าง','ค่าตอบแทนตามชั่วโมง เลือกวันเวลาเองได้'],
+  student:['นักศึกษา','อาชีวะ วิศวะ หรือสายช่าง','ชั่วโมงฝึกงาน / บริการสังคม และใบรับรอง'],
+  repair_shop:['ร้านซ่อม','ร้านซ่อมเครื่องใช้ไฟฟ้าในพื้นที่','รับงานที่ศูนย์ส่งต่อ ร้านแสดงในแอป'],
+  parts_shop:['ร้านอะไหล่','ร้านขายอะไหล่เครื่องใช้ไฟฟ้า','ผู้ซ่อมเองหาอะไหล่ถูกรุ่นจากร้านของคุณ'],
+  collector:['ผู้รับซื้อของเก่า','ซาเล้ง ร้านรับซื้อ หรือผู้แยกขยะ','รับซากที่ถอดอะไหล่แล้ว และอบรมการแยกชิ้นส่วนอย่างปลอดภัย']};
+const TECH_KINDS = ['volunteer','senior','student'];
 function volunteerCard(){ const a = S.apps.find(x => x.user_id === S.me.id && x.status === 'pending'), d = S.d;
-  if (a) return `<div class="card"><h2>ช่างอาสา</h2><p class="small">${chip(['รอพิจารณา','warn'])} ส่งใบสมัครเมื่อ ${ftime(a.created_at)} เจ้าหน้าที่จะติดต่อนัดทดสอบทักษะ</p></div>`;
-  if (!d.vol) return `<div class="card"><h2>ช่างอาสา</h2><p class="small muted">มีทักษะซ่อมเครื่องใช้ไฟฟ้า? ร่วมเป็นช่างอาสาหรือช่างสูงวัยของศูนย์ สอนและกำกับงานซ่อมให้คนในชุมชน</p><div><button type="button" class="btn sm" data-a="volOpen">สมัครเป็นช่างอาสา</button></div></div>`;
-  return `<div class="card"><h2>สมัครเป็นช่างอาสา</h2>
-  <label class="f">ทักษะที่ถนัด<input id="v-skills" data-m="vSkills" value="${esc(d.vSkills)}" placeholder="เช่น พัดลม หม้อหุงข้าว งานบัดกรี"></label>
-  <label class="f">ประสบการณ์<textarea id="v-exp" data-m="vExp">${esc(d.vExp)}</textarea></label>
-  <label class="f">วันเวลาที่สะดวก<input id="v-av" data-m="vAvail" value="${esc(d.vAvail)}" placeholder="เช่น เสาร์–อาทิตย์ ช่วงเช้า"></label>
-  <label class="row small"><input type="checkbox" id="v-senior" data-m="vSenior" ${d.vSenior ? 'checked' : ''}> สมัครในโครงการช่างสูงวัย (อายุ 60 ปีขึ้นไป)</label>
+  if (a) return `<div class="card"><h2>ร่วมเป็นช่างและพันธมิตร</h2><p class="small">${chip(['รอพิจารณา','warn'])} ใบสมัคร${esc(PKIND[a.kind]?.[0] || '')} ส่งเมื่อ ${ftime(a.created_at)} เจ้าหน้าที่จะติดต่อกลับ</p></div>`;
+  if (!d.vol) return `<div class="card"><h2>ร่วมเป็นช่างและพันธมิตร</h2><p class="small muted">ช่างอาสา ช่างสูงวัย นักศึกษา ร้านซ่อม ร้านอะไหล่ และผู้รับซื้อของเก่า ร่วมเป็นเครือข่ายของศูนย์ได้</p><div class="row"><button type="button" class="btn sm pri" data-a="volOpen">สมัคร</button><button type="button" class="link small" data-a="joinOpen">ดูสิทธิประโยชน์แต่ละกลุ่ม →</button></div></div>`;
+  const k = d.pKind || 'volunteer', tech = TECH_KINDS.includes(k), shop = !tech;
+  return `<div class="card"><h2>สมัครร่วมเป็นช่างและพันธมิตร</h2>
+  <h3 id="pk-h">ฉันสมัครในฐานะ</h3><div class="opt" role="group" aria-labelledby="pk-h">${Object.entries(PKIND).map(([key, v]) => `<button type="button" data-a="pKind" data-id="${key}" aria-pressed="${k === key}">${v[0]}</button>`).join('')}</div>
+  <p class="small muted">${PKIND[k][1]} · สิ่งที่ได้รับ: ${PKIND[k][2]}</p>
+  ${k === 'student' || shop ? `<label class="f">${k === 'student' ? 'สถาบัน' : 'ชื่อร้าน / กิจการ'}<input id="p-org" data-m="pOrg" value="${esc(d.pOrg)}"></label>` : ''}
+  <label class="f">${tech ? 'ทักษะที่ถนัด' : 'บริการ / สินค้าหลัก'}<input id="v-skills" data-m="vSkills" value="${esc(d.vSkills)}" placeholder="${tech ? 'เช่น พัดลม หม้อหุงข้าว งานบัดกรี' : 'เช่น ซ่อมทีวี ไมโครเวฟ / รับซื้อเหล็ก ทองแดง'}"></label>
+  ${tech ? `<label class="f">ประสบการณ์<textarea id="v-exp" data-m="vExp">${esc(d.vExp)}</textarea></label>` : `<label class="f">ที่ตั้ง / ย่าน<input id="p-loc" data-m="pLoc" value="${esc(d.pLoc)}" placeholder="เช่น ตลาดวโรรส"></label><label class="f">เบอร์ร้าน (แสดงในแอป)<input id="p-phone" type="tel" data-m="pPhone" value="${esc(d.pPhone)}"></label>`}
+  <label class="f">${tech ? 'วันเวลาที่สะดวก' : 'วันเวลาทำการ'}<input id="v-av" data-m="vAvail" value="${esc(d.vAvail)}" placeholder="เช่น เสาร์–อาทิตย์ ช่วงเช้า"></label>
+  ${shop ? `<label class="row small"><input type="checkbox" id="p-ok" data-m="pOk" ${d.pOk ? 'checked' : ''}> ยินยอมให้แสดงชื่อร้าน ที่ตั้ง บริการ และเบอร์ร้านในแอปหลังได้รับอนุมัติ</label>` : ''}
   <div class="row"><button type="button" class="btn pri sm" data-a="applyTech">ส่งใบสมัคร</button><button type="button" class="btn sm" data-a="volClose">ยกเลิก</button></div></div>`; }
 function hoursCard(){ const t = S.techs.find(x => x.user_id === S.me.id), h = t && S.hours.find(x => x.tech_id === t.id); if (!h) return '';
   const hr = m => (m / 60).toLocaleString('th-TH', {maximumFractionDigits:1});
@@ -379,8 +391,47 @@ function vCase(v){ const c = by('cases', v.id); if (!c) return `<p>ไม่พ�
   ${c.status === 'needinfo' ? `<div class="banner warn"><b>ช่างขอข้อมูลเพิ่ม</b><span class="small">ตอบในแชตด้านล่าง เคสจะกลับเข้าคิวประเมิน</span></div>` : ''}
   <div class="card"><dl class="kv"><dt>อาการ</dt><dd>${esc(c.syms.join(', '))}</dd><dt>รายละเอียด</dt><dd>${esc(c.detail || '-')}</dd><dt>เริ่มเป็น</dt><dd>${esc(c.since || '-')}</dd><dt>ตกน้ำ / ตกพื้น</dt><dd>${esc(c.dropped)}</dd><dt>ภาพ</dt>${photoStrip(c)}</dl></div>
   ${a ? assessCard(a) : `<p class="muted small">ช่างจะตอบภายใน 24 ชั่วโมงหลังส่งเคส</p>`}
+  ${partnerSuggest(c, a)}
   ${b ? bookingCard(b) : (['assessed','waiting'].includes(c.status) && (!a || a.level !== 'notworth')) ? `<button type="button" class="btn pri" data-a="startBook" data-id="${c.id}">${a ? 'จองซ่อมต่อ' : 'จองให้ช่างตรวจและซ่อม'}</button>` : ''}
   ${chatBox(c)}`; }
+function partnerSuggest(c, a){ const ps = S.partners.filter(p => p.active); if (!ps.length || !a) return '';
+  let kinds = [], title = '';
+  if (['referred','done_fail'].includes(c.status)){ kinds = ['repair_shop']; title = 'ร้านซ่อมพันธมิตรที่รับงานต่อได้'; }
+  else if (a.level === 'notworth'){ kinds = ['collector','repair_shop']; title = 'ทางเลือกสำหรับเครื่องที่ไม่คุ้มซ่อม'; }
+  else if (a.level === 'self' && a.parts.length){ kinds = ['parts_shop']; title = 'ร้านอะไหล่พันธมิตร'; }
+  const list = ps.filter(p => kinds.includes(p.kind)).slice(0, 5); if (!list.length) return '';
+  return `<div class="card"><h2>${title}</h2>${a.level === 'notworth' ? `<p class="small muted">นำเครื่องมาทิ้งที่จุดรับขยะของศูนย์ได้ฟรี หรือติดต่อพันธมิตรด้านล่าง</p>` : `<p class="small muted">ศูนย์ไม่ได้รับค่าตอบแทนจากการแนะนำ ค่าบริการของร้านตกลงกับร้านโดยตรง</p>`}
+  <ul class="plain">${list.map(p => `<li><b>${esc(p.name)}</b> ${chip([PKIND[p.kind][0], ''])}<br><span class="small">${esc(p.services)}${p.location ? ' · ' + esc(p.location) : ''}${p.phone ? ` · <a href="tel:${esc(p.phone.replace(/[^0-9+]/g, ''))}">${esc(p.phone)}</a>` : ''}</span></li>`).join('')}</ul></div>`; }
+const STAKE = {citizen:'ประชาชนผู้ใช้บริการ', tech:'ช่าง / ช่างอาสา', repair_shop:'ร้านซ่อม', parts_shop:'ร้านอะไหล่', collector:'ผู้เก็บ / รับซื้อของเก่า', agency:'หน่วยงานรัฐ', student:'นักศึกษา / สถาบัน', other:'อื่น ๆ'};
+const FCAT = {hard:['ใช้งานยาก','warn'], bug:['แจ้งปัญหา','bad'], idea:['ข้อเสนอแนะ','acc'], complaint:['ร้องเรียน','bad']};
+const FSTAT = {new:['ใหม่','warn'], progress:['กำลังดำเนินการ','acc'], done:['เสร็จแล้ว','ok']};
+function vFeedback(){ const d = S.d, logged = !!(S.session && S.me), mine2 = logged ? S.feedback.filter(f => f.user_id === S.me.id) : [];
+  if (d.fbSent) return `<h1 tabindex="-1">ขอบคุณสำหรับความคิดเห็น</h1><div class="banner ok" role="status"><b>ส่งถึงเจ้าหน้าที่แล้ว</b><span class="small">${logged ? 'ถ้าเจ้าหน้าที่ตอบกลับ คุณจะได้รับแจ้งเตือนในแอป' : 'ศูนย์จะติดต่อกลับหากคุณให้ช่องทางติดต่อไว้'}</span></div><div><button type="button" class="btn" data-a="fbAgain">ส่งความคิดเห็นอีก</button></div>`;
+  return `<h1 tabindex="-1">ส่งความคิดเห็น</h1><p class="small muted">ช่วยเราปรับปรุงบริการ ความคิดเห็นทุกข้อถูกอ่านโดยเจ้าหน้าที่ศูนย์</p>
+  <div class="card"><label class="f">ฉันคือ<select id="fb-who" data-m="fbWho">${Object.entries(STAKE).map(([k, t]) => `<option value="${k}" ${(d.fbWho || (logged && isStaff() ? 'tech' : 'citizen')) === k ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+  <h2 id="fc-h">เรื่อง</h2><div class="opt" role="group" aria-labelledby="fc-h">${Object.entries(FCAT).map(([k, v]) => `<button type="button" data-a="fbCat" data-id="${k}" aria-pressed="${d.fbCat === k}">${v[0]}</button>`).join('')}</div>
+  <h2 id="fr-h">ใช้งานง่ายแค่ไหน (ไม่บังคับ)</h2><div class="stars" role="group" aria-labelledby="fr-h">${[1,2,3,4,5].map(i => `<button type="button" data-a="fbStar" data-id="${i}" class="${(d.fbStar || 0) >= i ? 'on' : ''}" aria-pressed="${(d.fbStar || 0) === i}" aria-label="${i} ดาว">★</button>`).join('')}</div>
+  <label class="f">รายละเอียด<textarea id="fb-body" data-m="fbBody" maxlength="2000">${esc(d.fbBody)}</textarea></label>
+  ${logged ? '' : `<label class="f">ช่องทางติดต่อกลับ (ไม่บังคับ)<input id="fb-contact" data-m="fbContact" value="${esc(d.fbContact)}" placeholder="อีเมลหรือเบอร์โทร"></label>`}
+  <div><button type="button" class="btn pri" data-a="fbSend" ${S.busy ? 'disabled' : ''}>ส่งความคิดเห็น</button></div></div>
+  ${mine2.length ? `<h2>ความคิดเห็นของฉัน</h2>${mine2.map(f => `<div class="card"><div class="row between">${chip(FCAT[f.category])}${chip(FSTAT[f.status])}</div><p class="small">${esc(f.body)}</p>${f.reply ? `<div class="banner info small"><b>ศูนย์ตอบ</b><span>${esc(f.reply)}</span></div>` : ''}<span class="small muted">${ftime(f.created_at)}</span></div>`).join('')}` : ''}`; }
+function aFeedback(){ const all = S.feedback, f = S.fbFilter || 'new', list = f === 'all' ? all : all.filter(x => x.status === f);
+  const by2 = Object.keys(STAKE).map(k => [k, all.filter(x => x.stakeholder === k).length]).filter(x => x[1]);
+  const rated = all.filter(x => x.rating), avg = rated.length ? (rated.reduce((s2, x) => s2 + x.rating, 0) / rated.length).toFixed(1) : '–';
+  return `<div class="row between"><h1 tabindex="-1">กล่องความคิดเห็น</h1><button type="button" class="btn sm" data-a="fbCsv">ส่งออก CSV</button></div>
+  <div class="stat"><div><b>${all.filter(x => x.status === 'new').length}</b><span class="small muted">ใหม่</span></div><div><b>${all.length}</b><span class="small muted">ทั้งหมด</span></div><div><b>${avg}</b><span class="small muted">ความง่ายในการใช้ (เฉลี่ย ${rated.length} คน)</span></div></div>
+  ${by2.length ? `<p class="small muted">แยกตามกลุ่ม: ${by2.map(([k, n]) => STAKE[k] + ' ' + n).join(' · ')}</p>` : ''}
+  <div class="seg" role="group" aria-label="สถานะ">${[['new','ใหม่'],['progress','กำลังทำ'],['done','เสร็จ'],['all','ทั้งหมด']].map(([k, t]) => `<button type="button" data-a="fbFilter" data-id="${k}" aria-pressed="${f === k}">${t}</button>`).join('')}</div>
+  ${list.map(x => `<div class="card"><div class="row between"><span class="row">${chip(FCAT[x.category])}${chip([STAKE[x.stakeholder], ''])}${x.rating ? `<span class="small" aria-label="${x.rating} ดาว">${'★'.repeat(x.rating)}</span>` : ''}</span>${chip(FSTAT[x.status])}</div>
+    <p>${esc(x.body)}</p><p class="small muted">${ftime(x.created_at)} · ${x.user_id ? esc(userName(x.user_id) || 'ผู้ใช้') : 'ไม่ได้ล็อกอิน'}${x.contact ? ' · ติดต่อ ' + esc(x.contact) : ''}${x.page ? ' · หน้า ' + esc(x.page) : ''}</p>
+    <label class="f">ตอบกลับ${x.user_id ? ' (ผู้ส่งได้รับแจ้งเตือน)' : ''}<textarea id="r-${x.id}" data-m="r_${x.id}">${esc(S.d['r_' + x.id] ?? x.reply ?? '')}</textarea></label>
+    <div class="row"><button type="button" class="btn sm" data-a="fbSet" data-id="${x.id}" data-s="progress">กำลังดำเนินการ</button><button type="button" class="btn sm pri" data-a="fbSet" data-id="${x.id}" data-s="done">บันทึกว่าเสร็จ</button></div></div>`).join('') || `<p class="small muted">ไม่มีรายการ</p>`}`; }
+function vJoin(){ const st = S.pstats || {}, logged = !!(S.session && S.me);
+  return `<div><button type="button" class="link" data-a="joinClose">← กลับ</button></div>
+  <div class="hero"><span class="pill">เครือข่ายชุมชน · ${ORG}</span><h1 tabindex="-1">ร่วมเป็นช่างและพันธมิตร ReSpace</h1><p class="muted">ซ่อมของ สร้างคน ลดขยะ ไปด้วยกัน ทุกกลุ่มได้ประโยชน์ที่ตรงกับตัวเอง</p></div>
+  <div class="stat"><div><b>${st.techs ?? '–'}</b><span class="small muted">ช่างในเครือข่าย</span></div><div><b>${st.partners ?? '–'}</b><span class="small muted">ร้านและพันธมิตร</span></div><div><b>${st.trained ?? '–'}</b><span class="small muted">ผู้ผ่านการอบรม</span></div></div>
+  ${Object.entries(PKIND).map(([k, v]) => `<div class="card"><h2>${v[0]}</h2><p class="small muted">${v[1]}</p><p class="small"><b>ได้รับ:</b> ${v[2]}</p><div><button type="button" class="btn sm ${logged ? 'pri' : ''}" data-a="joinApply" data-id="${k}">${logged ? 'สมัครเป็น' + v[0] : 'ลงทะเบียนเพื่อสมัคร'}</button></div></div>`).join('')}
+  <div class="card"><h2>ขั้นตอน</h2><ol class="plain small"><li>ลงทะเบียนบัญชีในแอป (ฟรี)</li><li>หน้าโปรไฟล์ → ร่วมเป็นช่างและพันธมิตร → เลือกประเภท</li><li>เจ้าหน้าที่ติดต่อนัดทดสอบทักษะ (ช่าง) หรือยืนยันข้อมูลร้าน (พันธมิตร)</li><li>เริ่มรับงาน ช่างดูชั่วโมงงานได้ในแอป ร้านแสดงให้ประชาชนเห็นทันที</li></ol></div>`; }
 function vPickCase(){ const cs = mine('cases').filter(c => ['assessed','waiting'].includes(c.status) && !liveB(c.id) && (lastA(c.id) || {}).level !== 'notworth');
   return `<h1 tabindex="-1">จองซ่อม</h1><p class="muted small">ทุกการจองต้องมีเคสและผ่านการคัดกรองก่อน</p>${cs.map(caseCard).join('')}
   <div class="card"><h3>ยังไม่มีเคสสำหรับเครื่องนี้</h3><p class="small muted">จองตรงจะสร้างเคสและคัดกรองความเสี่ยงให้ก่อน จากนั้นจองโต๊ะช่างได้ทันที ส่วนการซ่อมเองต้องรอผลประเมิน</p><div><button type="button" class="btn" data-a="newTriage" data-direct="1">สร้างเคสแล้วจอง</button></div></div>`; }
@@ -518,7 +569,7 @@ function dropTable(list){ return `<div class="tw" tabindex="0"><table><thead><tr
 
 /* ================= มุมมองแอดมิน ================= */
 function adminView(){ const v = S.view; if (v && v.n === 'job') return back() + vJob(v); if (v && v.n === 'case') return back() + vCase(v);
-  if (v && v.n === 'dropoff') return back() + vDropoff(); if (v && v.n === 'pay') return back() + aPay();
+  if (v && v.n === 'dropoff') return back() + vDropoff(); if (v && v.n === 'pay') return back() + aPay(); if (v && v.n === 'fb') return back() + aFeedback();
   return ({dash:aDash, jobs:vJobs, sched:aSched, users:aUsers, stock:aStock, ws:aWs, log:aLog}[S.tab] || aDash)(); }
 function aDash(){ const today = dkey(new Date());
   const suspended = S.users.filter(u => u.noshow_count >= NOSHOW_LIMIT);
@@ -528,7 +579,9 @@ function aDash(){ const today = dkey(new Date());
   <div><b>${S.bookings.filter(b => b.status === 'noshow').length}</b><span class="small muted">ไม่มาตามนัด</span></div>
   <div><b>${S.parts.filter(p => p.stock - p.reserved <= 1).length}</b><span class="small muted">อะไหล่ใกล้หมด</span></div>
   <div><b>${S.apps.filter(a => a.status === 'pending').length}</b><span class="small muted">ใบสมัครช่างรอพิจารณา</span></div>
-  <div><b>${S.waitlist.filter(w => ['waiting','offered'].includes(w.status)).length}</b><span class="small muted">ผู้รอคิวสำรอง</span></div></div>
+  <div><b>${S.waitlist.filter(w => ['waiting','offered'].includes(w.status)).length}</b><span class="small muted">ผู้รอคิวสำรอง</span></div>
+  <div><b>${S.feedback.filter(f => f.status === 'new').length}</b><span class="small muted">ความคิดเห็นใหม่</span></div></div>
+  <div><button type="button" class="btn sm" data-a="go" data-n="fb">เปิดกล่องความคิดเห็น</button></div>
   <div class="row"><button type="button" class="link" data-a="go" data-n="pay">ดูรายละเอียดงบอะไหล่ที่สนับสนุน →</button><button type="button" class="link" data-a="openData">หน้าข้อมูลเปิดสาธารณะ →</button></div>
   ${suspended.length ? `<h2>ผู้ใช้ที่ถูกพักสิทธิ์</h2>${suspended.map(u => `<div class="card"><div class="row between"><span>${esc(u.full_name)} · ไม่มาตามนัด ${u.noshow_count} ครั้ง</span><button type="button" class="btn sm" data-a="resetNoshow" data-id="${u.id}">คืนสิทธิ์</button></div></div>`).join('')}` : ''}
   ${S.reviews.length ? `<h2>รีวิวล่าสุด</h2>` + S.reviews.slice(-5).reverse().map(r => `<div class="card"><p><span aria-label="${r.stars} ดาว">${'★'.repeat(r.stars)}</span> ${esc(r.text)}</p><span class="small muted mono">${r.bookingId}</span></div>`).join('') : ''}`; }
@@ -582,11 +635,13 @@ function aStock(){ return `<h1 tabindex="-1">อุปกรณ์และอ�
   ${S.parts.map(p => `<tr><td class="mono">${p.id}</td><td>${esc(p.name)}<br><span class="muted">${esc(p.fits)}</span></td><td class="num">${p.stock}</td><td class="num">${p.reserved}</td><td class="num">${p.stock - p.reserved}</td><td class="num">${p.used}</td><td class="num">${p.value}</td><td><button type="button" class="btn sm" data-a="restock" data-id="${p.id}">รับเข้า +5</button></td></tr>`).join('')}</tbody></table></div>
   <div class="row between"><h2>รับทิ้งขยะอิเล็กทรอนิกส์</h2><button type="button" class="btn sm" data-a="go" data-n="dropoff">บันทึกการรับทิ้ง</button></div>
   <p class="small muted">รวม ${S.dropoffs.reduce((s, x) => s + Number(x.weight_kg), 0).toFixed(1)} กก. จาก ${S.dropoffs.length} รายการ</p>${dropTable(S.dropoffs)}`; }
-function appsBlock(){ const ap = S.apps.filter(a => a.status === 'pending'); if (!ap.length) return '';
-  return `<h2>ใบสมัครช่างอาสา (${ap.length})</h2>${ap.map(a => `<div class="card"><div class="row between"><h3>${esc(userName(a.user_id))}</h3>${a.senior ? chip(['ช่างสูงวัย','acc']) : ''}</div>
-  <dl class="kv"><dt>ทักษะ</dt><dd>${esc(a.skills)}</dd><dt>ประสบการณ์</dt><dd>${esc(a.experience || '-')}</dd><dt>เวลาที่สะดวก</dt><dd>${esc(a.availability || '-')}</dd><dt>เบอร์โทร</dt><dd class="mono">${esc(S.phones[a.user_id] || '-')}</dd></dl>
-  <p class="small muted">อนุมัติหลังนัดทดสอบทักษะแล้ว บัญชีจะถูกตั้งเป็นช่างทันที</p>
-  <div class="row"><button type="button" class="btn sm pri" data-a="decide" data-id="${a.id}" data-v="1">${S.d.dc === a.id + '1' ? 'กดอีกครั้งเพื่ออนุมัติ' : 'อนุมัติเป็นช่าง'}</button><button type="button" class="btn sm" data-a="decide" data-id="${a.id}" data-v="0">${S.d.dc === a.id + '0' ? 'กดอีกครั้งเพื่อยืนยัน' : 'ไม่อนุมัติ'}</button></div></div>`).join('')}`; }
+function appsBlock(){ const ap = S.apps.filter(a => a.status === 'pending'), ps = S.partners;
+  return `${ap.length ? `<h2>ใบสมัครช่างและพันธมิตร (${ap.length})</h2>${ap.map(a => { const tech = TECH_KINDS.includes(a.kind || 'volunteer'); return `<div class="card"><div class="row between"><h3>${esc(a.org_name || userName(a.user_id))}</h3>${chip([PKIND[a.kind || 'volunteer'][0], tech ? 'acc' : 'ok'])}</div>
+  <dl class="kv"><dt>ผู้สมัคร</dt><dd>${esc(userName(a.user_id))}</dd><dt>${tech ? 'ทักษะ' : 'บริการ'}</dt><dd>${esc(a.skills)}</dd>${a.experience ? `<dt>ประสบการณ์</dt><dd>${esc(a.experience)}</dd>` : ''}${a.location ? `<dt>ที่ตั้ง</dt><dd>${esc(a.location)}</dd>` : ''}<dt>เวลา</dt><dd>${esc(a.availability || '-')}</dd><dt>เบอร์โทร</dt><dd class="mono">${esc(a.public_phone || S.phones[a.user_id] || '-')}</dd></dl>
+  <p class="small muted">${tech ? 'อนุมัติหลังนัดทดสอบทักษะ บัญชีจะถูกตั้งเป็นช่างทันที' : 'อนุมัติแล้วร้านจะแสดงในแอปให้ประชาชนเห็นเมื่อเคสต้องส่งต่อหรือไม่คุ้มซ่อม'}</p>
+  <div class="row"><button type="button" class="btn sm pri" data-a="decide" data-id="${a.id}" data-v="1">${S.d.dc === a.id + '1' ? 'กดอีกครั้งเพื่ออนุมัติ' : tech ? 'อนุมัติเป็นช่าง' : 'อนุมัติเป็นพันธมิตร'}</button><button type="button" class="btn sm" data-a="decide" data-id="${a.id}" data-v="0">${S.d.dc === a.id + '0' ? 'กดอีกครั้งเพื่อยืนยัน' : 'ไม่อนุมัติ'}</button></div></div>`; }).join('')}` : ''}
+  ${ps.length ? `<h2>พันธมิตร (${ps.filter(p => p.active).length})</h2><div class="tw" tabindex="0"><table><thead><tr><th scope="col">ชื่อ</th><th scope="col">ประเภท</th><th scope="col">ที่ตั้ง</th><th scope="col">เบอร์</th><th scope="col"><span class="sr">การดำเนินการ</span></th></tr></thead><tbody>
+  ${ps.map(p => `<tr><td>${esc(p.name)}<br><span class="muted">${esc(p.services)}</span></td><td>${PKIND[p.kind][0]}</td><td>${esc(p.location || '-')}</td><td class="mono">${esc(p.phone || '-')}</td><td><button type="button" class="btn sm" data-a="partnerActive" data-id="${p.id}" data-v="${p.active ? '0' : '1'}">${p.active ? 'ซ่อนจากแอป' : 'แสดงในแอป'}</button></td></tr>`).join('')}</tbody></table></div>` : ''}`; }
 function hoursBlock(){ const hr = m => (m / 60).toLocaleString('th-TH', {maximumFractionDigits:1}), d = S.d;
   return `<h2>ชั่วโมงงานช่างเดือนนี้</h2><div class="tw" tabindex="0"><table><thead><tr><th scope="col">ช่าง</th><th class="num" scope="col">งานซ่อม</th><th class="num" scope="col">สอน (ชม.)</th><th class="num" scope="col">อื่น ๆ (ชม.)</th><th class="num" scope="col">รวม (ชม.)</th></tr></thead><tbody>
   ${S.hours.map(h => `<tr><td>${esc(h.name)}<br><span class="muted">${esc(h.skill || '')}</span></td><td class="num">${h.repairs} (${hr(h.repair_min)} ชม.)</td><td class="num">${hr(h.workshop_min)}</td><td class="num">${hr(h.other_min)}</td><td class="num"><b>${hr(h.total_min)}</b></td></tr>`).join('') || '<tr><td colspan="5" class="muted">ยังไม่มีข้อมูล</td></tr>'}</tbody></table></div>
@@ -776,8 +831,30 @@ const A = {
   async leaveWs(e){ if (S.d.lw !== e.id){ S.d.lw = e.id; return; } await rpc('leave_workshop', {p_id:e.id}); await refresh(); S.view = null; S.d = {}; toast('ยกเลิกแล้ว คืนที่นั่งให้คนอื่น'); },
   print(){ window.print(); },
   volOpen(){ S.d.vol = true; }, volClose(){ S.d = {}; },
-  async applyTech(){ const d = S.d; if ((d.vSkills || '').trim().length < 2) return toast('ระบุทักษะที่ถนัด');
-    await rpc('apply_tech', {p_skills:d.vSkills, p_experience:d.vExp || '', p_availability:d.vAvail || '', p_senior:!!d.vSenior}); await refresh(); S.d = {}; toast('ส่งใบสมัครแล้ว'); },
+  pKind(e){ S.d.pKind = e.id; },
+  async partnerActive(e){ await rpc('set_partner_active', {p_id:+e.id, p_active:e.v === '1'}); await refresh(); },
+  joinOpen(){ S.joinMode = true; S.helpMode = false; S.fbMode = false; history.replaceState(null, '', location.pathname + '?join'); if (!S.pstats) sb.rpc('partner_stats').then(({data}) => { S.pstats = data; render(); }); },
+  joinClose(){ S.joinMode = false; history.replaceState(null, '', location.pathname); },
+  joinApply(e){ S.joinMode = false; history.replaceState(null, '', location.pathname);
+    if (S.session && S.me){ S.view = null; S.tab = 'me'; S.d = {vol:true, pKind:e.id}; if (role() !== 'citizen' && TECH_KINDS.includes(e.id)) toast('บัญชีนี้เป็นเจ้าหน้าที่อยู่แล้ว เลือกประเภทร้านหรือพันธมิตรได้'); }
+    else { S.auth.mode = 'signup'; S.auth.msg = 'ลงทะเบียนแล้วไปที่ โปรไฟล์ → ร่วมเป็นช่างและพันธมิตร เพื่อส่งใบสมัคร'; } },
+  fbOpen(){ if (S.session && S.me){ S.view = {n:'feedback'}; S.d = {}; } else { S.fbMode = true; S.helpMode = false; S.d = {}; } },
+  fbClose(){ S.fbMode = false; S.d = {}; },
+  fbAgain(){ S.d = {}; },
+  fbCat(e){ S.d.fbCat = e.id; }, fbStar(e){ S.d.fbStar = +e.id; },
+  async fbSend(){ const d = S.d; if (!d.fbCat) return toast('เลือกเรื่องของความคิดเห็น'); if ((d.fbBody || '').trim().length < 5) return toast('เขียนรายละเอียดอย่างน้อย 5 ตัวอักษร');
+    S.busy = true; try { await rpc('submit_feedback', {p_stakeholder:d.fbWho || (S.me && isStaff() ? 'tech' : 'citizen'), p_category:d.fbCat, p_rating:d.fbStar || null, p_body:d.fbBody, p_page:(S.session ? role() + ':' + S.tab : 'public'), p_contact:d.fbContact || ''});
+      if (S.session && S.me) await refresh(); S.d = {fbSent:true}; } finally { S.busy = false; } },
+  fbFilter(e){ S.fbFilter = e.id; },
+  async fbSet(e){ await rpc('reply_feedback', {p_id:+e.id, p_status:e.s, p_reply:S.d['r_' + e.id] ?? (S.feedback.find(x => x.id === +e.id)?.reply || '')}); await refresh(); toast('บันทึกแล้ว'); },
+  fbCsv(){ const q3 = v => /[",\n]/.test(String(v ?? '')) ? `"${String(v).replace(/"/g, '""')}"` : String(v ?? '');
+    const rows = [['id','วันที่','กลุ่ม','เรื่อง','คะแนนความง่าย','รายละเอียด','สถานะ','คำตอบ'], ...S.feedback.map(x => [x.id, x.created_at, STAKE[x.stakeholder], FCAT[x.category][0], x.rating ?? '', x.body, FSTAT[x.status][0], x.reply ?? ''])];
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + rows.map(r => r.map(q3).join(',')).join('\r\n')], {type:'text/csv;charset=utf-8'})); a.download = 'respace-feedback.csv'; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); },
+  async applyTech(){ const d = S.d, k = d.pKind || 'volunteer', shop = !TECH_KINDS.includes(k);
+    if ((d.vSkills || '').trim().length < 2) return toast(shop ? 'ระบุบริการหรือสินค้าหลัก' : 'ระบุทักษะที่ถนัด');
+    if ((k === 'student' || shop) && (d.pOrg || '').trim().length < 2) return toast(k === 'student' ? 'ระบุสถาบัน' : 'ระบุชื่อร้าน / กิจการ');
+    if (shop && !d.pOk) return toast('ติ๊กยินยอมให้แสดงข้อมูลร้านในแอป');
+    await rpc('apply_partner', {p_kind:k, p_skills:d.vSkills, p_experience:d.vExp || '', p_availability:d.vAvail || '', p_org:d.pOrg || '', p_location:d.pLoc || '', p_phone:shop ? (d.pPhone || '') : ''}); await refresh(); S.d = {}; toast('ส่งใบสมัครแล้ว'); },
   async decide(e){ const k = e.id + e.v; if (S.d.dc !== k){ S.d.dc = k; return; } await rpc('decide_application', {p_id:+e.id, p_approve:e.v === '1'}); await refresh(); S.d = {}; toast(e.v === '1' ? 'อนุมัติแล้ว ตั้งเป็นช่างเรียบร้อย' : 'บันทึกผลแล้ว'); },
   async logHours(){ const d = S.d, m = parseInt(d.lhMin); if (!(m > 0 && m <= 720)) return toast('กรอกจำนวนนาที 1–720');
     await rpc('log_hours', {p_tech:d.lhTech || S.techs.find(t => t.active)?.id, p_date:d.lhDate || today(), p_minutes:m, p_note:d.lhNote || ''}); await refresh(); S.d = {}; toast('บันทึกชั่วโมงแล้ว'); },
@@ -899,6 +976,7 @@ function vHelp(){ const r = S.session && S.me ? role() : null, order = r ? [r, .
   return `<h1 tabindex="-1">วิธีใช้งาน</h1><p class="muted small">คู่มือสั้นแบ่งตามบทบาท และคำถามที่พบบ่อย</p>
   ${r ? `<div><button type="button" class="btn pri" data-a="tourStart">เริ่มทัวร์แนะนำอีกครั้ง</button></div>` : ''}
   ${order.map((k, j) => `<details class="card" ${j ? '' : 'open'}><summary><b>${HELP[k].t}</b></summary><ol class="plain">${HELP[k].steps.map(([a, b]) => `<li><b>${esc(a)}</b><br><span class="small">${esc(b)}</span></li>`).join('')}</ol></details>`).join('')}
+  <div class="row"><button type="button" class="btn" data-a="fbOpen">ส่งความคิดเห็นถึงศูนย์</button><button type="button" class="btn" data-a="joinOpen">ร่วมเป็นช่างและพันธมิตร</button></div>
   <h2>คำถามที่พบบ่อย</h2>${FAQ.map(([q, a]) => `<details class="card"><summary><b>${esc(q)}</b></summary><p class="small">${esc(a)}</p></details>`).join('')}
   <div class="card"><h2>ติดต่อศูนย์</h2><p class="small">สอบถามได้ที่เคาน์เตอร์${ORG} ในเวลาทำการ หรือแชตกับช่างในเคสของคุณ</p></div>`; }
 
@@ -907,14 +985,15 @@ let lastViewKey = '';
 function render(){
   const main = $('#main'), user = $('#user'), tabs = $('#tabs');
   if (!S.ready){ main.innerHTML = `<p class="muted" role="status">กำลังโหลด…</p>`; return; }
-  if (S.openMode){ $('nav.tabs').hidden = true; tabs.innerHTML = ''; if (!S.session) user.innerHTML = ''; main.innerHTML = vOpen(); }
+  if (S.joinMode && !S.session){ $('nav.tabs').hidden = true; tabs.innerHTML = ''; user.innerHTML = ''; main.innerHTML = vJoin(); }
+  else if (S.openMode){ $('nav.tabs').hidden = true; tabs.innerHTML = ''; if (!S.session) user.innerHTML = ''; main.innerHTML = vOpen(); }
   else if (S.recovery && S.session){ user.innerHTML = ''; tabs.innerHTML = ''; $('nav.tabs').hidden = true; main.innerHTML = vNewPw(); }
-  else if (!S.session || !S.me){ user.innerHTML = ''; tabs.innerHTML = ''; $('nav.tabs').hidden = true; main.innerHTML = S.helpMode ? `<div><button type="button" class="link" data-a="helpClose">← กลับไปหน้าเข้าสู่ระบบ</button></div>` + vHelp() : vAuth(); }
+  else if (!S.session || !S.me){ user.innerHTML = ''; tabs.innerHTML = ''; $('nav.tabs').hidden = true; main.innerHTML = S.fbMode ? `<div><button type="button" class="link" data-a="fbClose">← กลับไปหน้าเข้าสู่ระบบ</button></div>` + vFeedback() : S.helpMode ? `<div><button type="button" class="link" data-a="helpClose">← กลับไปหน้าเข้าสู่ระบบ</button></div>` + vHelp() : vAuth(); }
   else {
     $('nav.tabs').hidden = false;
     const nm = S.me.full_name || S.session.user.email;
     user.innerHTML = `<div class="who"><span class="avatar" aria-hidden="true">${esc([...nm][0] || '?')}</span><span class="stack" style="gap:0;min-width:0"><span class="nm">${esc(nm)}</span><span class="rl">${ROLE[role()]}</span></span></div><button type="button" class="icon-btn" id="help-btn" data-a="help" aria-label="วิธีใช้งาน" title="วิธีใช้งาน">${ico('help')}</button><button type="button" class="icon-btn" data-a="logout" aria-label="ออกจากระบบ" title="ออกจากระบบ">${ico('logout')}</button>`;
-    main.innerHTML = S.view?.n === 'help' ? back() + vHelp() : role() === 'citizen' ? citizenView() : role() === 'tech' ? techView() : adminView();
+    main.innerHTML = S.joinMode ? vJoin() : S.view?.n === 'help' ? back() + vHelp() : S.view?.n === 'feedback' ? back() + vFeedback() : role() === 'citizen' ? citizenView() : role() === 'tech' ? techView() : adminView();
     const unread = S.notifs.filter(n => !n.read).length;
     tabs.innerHTML = TABS[role()].map(([k, t]) => `<button type="button" data-a="tab" data-id="${k}" ${!S.view && S.tab === k ? 'aria-current="page"' : ''}>${ico(k)}<span class="t">${t}</span>${k === 'me' && unread ? `<span class="badge"><span aria-hidden="true">${unread}</span><span class="sr">แจ้งเตือนใหม่ ${unread} รายการ</span></span>` : ''}</button>`).join('');
   }
@@ -935,7 +1014,7 @@ document.addEventListener('submit', e => {
   if (e.target.id === 'forgot-form'){ e.preventDefault(); A.forgot().catch(fail).finally(render); }
   if (e.target.id === 'newpw-form'){ e.preventDefault(); S.recovery_pw = $('#np-pw').value; A.newpw().catch(fail).finally(render); }
 });
-document.addEventListener('input', e => { const el = e.target; if (!el.dataset.m) return; const tgt = S.session && S.me ? S.d : S.auth; tgt[el.dataset.m] = el.type === 'checkbox' ? el.checked : el.value; });
+document.addEventListener('input', e => { const el = e.target; if (!el.dataset.m) return; const tgt = (S.session && S.me) || S.fbMode ? S.d : S.auth; tgt[el.dataset.m] = el.type === 'checkbox' ? el.checked : el.value; });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && S.tour){ A.tourEnd(); render(); return; } });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.dataset.enter){ e.preventDefault(); act({dataset:{...e.target.dataset, a:e.target.dataset.enter}}).then(() => $('#' + e.target.id)?.focus()); } });
 document.addEventListener('change', async e => { const el = e.target; if (!el.dataset.ph || !el.files[0]) return;
@@ -951,6 +1030,7 @@ setInterval(async () => {
 
 function loadOpen(){ sb.rpc('open_data').then(({data}) => { S.open = data; render(); }); }
 if (new URLSearchParams(location.search).has('open')){ S.openMode = true; loadOpen(); }
+if (new URLSearchParams(location.search).has('join')){ S.joinMode = true; sb.rpc('partner_stats').then(({data}) => { S.pstats = data; render(); }); }
 { const no = new URLSearchParams(location.search).get('cert');
   if (no){ S.certCheck = {no, loading:true}; sb.rpc('verify_certificate', {p_no:no}).then(({data}) => { S.certCheck = {no, ok:data || null}; render(); }); } }
 sb.auth.onAuthStateChange((event, session) => {
