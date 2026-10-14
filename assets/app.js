@@ -47,6 +47,7 @@ const IP = {
   pay:'<rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20"/><path d="M16 15h2"/>',
   log:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3.1 14H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 3.1V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"/>',
   ws:'<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c3 2 9 2 12 0v-5"/><path d="M22 9v6"/>',
+  help:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14"/><path d="M12 17.5v.01"/>',
   logout:'<path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4"/><path d="M10 17l5-5-5-5M15 12H3"/>',
   scan:'<path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M7 12h10"/>',
   cal:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="m9 15 2 2 4-4"/>'
@@ -165,6 +166,7 @@ function vAuth(){
   </form>
   ${a.msg ? `<div class="banner info" role="status">${esc(a.msg)}</div>` : ''}
   ${S.pub ? `<div class="card"><h2>ผลงานของศูนย์</h2><div class="stat"><div><b>${S.pub.done}</b><span class="small muted">งานซ่อมที่จบ</span></div><div><b>${S.pub.done ? Math.round(S.pub.ok / S.pub.done * 100) + '%' : '–'}</b><span class="small muted">ซ่อมสำเร็จ</span></div><div><b>${Number(S.pub.kg).toFixed(1)} กก.</b><span class="small muted">ขยะอิเล็กทรอนิกส์ที่ลดได้</span></div><div><b>${baht(S.pub.value)}</b><span class="small muted">มูลค่าอะไหล่ที่ประชาชนไม่ต้องจ่าย</span></div></div><div><button type="button" class="link" data-a="openData">ดูข้อมูลเปิด (Open Data) และดาวน์โหลด →</button></div></div>` : ''}
+  <div><button type="button" class="link" data-a="helpOpen">วิธีใช้งานและคำถามที่พบบ่อย →</button></div>
   ${signup ? '' : `<div class="card"><h2>บัญชีทดลอง</h2><p class="small muted">สำหรับสาธิตเท่านั้น รหัสผ่านทุกบัญชี <span class="mono">ReSpace#Demo2026</span></p>
   <div class="opt">${DEMO.map(([e,t]) => `<button type="button" data-a="demoLogin" data-id="${e}">${t}</button>`).join('')}</div></div>`}
   </div>`;
@@ -654,7 +656,12 @@ const A = {
     const {data, error} = await sb.auth.signUp({email:a.email.trim(), password:a.pw, options:{emailRedirectTo:location.origin + location.pathname, data:{full_name:a.name.trim(), phone:(a.phone || '').trim(), district:(a.district || '').trim()}}});
     S.busy = false; if (error) return toast(error.message);
     if (!data.session) S.auth = {mode:'login', email:a.email, msg:'ลงทะเบียนแล้ว เปิดอีเมลเพื่อยืนยันบัญชี จากนั้นกลับมาเข้าสู่ระบบ'}; },
-  async logout(){ await sb.auth.signOut(); },
+  async logout(){ S.tour = null; await sb.auth.signOut(); },
+  help(){ S.view = {n:'help'}; S.d = {}; },
+  helpOpen(){ S.helpMode = true; }, helpClose(){ S.helpMode = false; },
+  tourStart(){ S.view = null; S.tab = TABS[role()][0][0]; S.tour = {i:0}; },
+  tourNext(){ S.tour.i++; }, tourPrev(){ if (S.tour.i) S.tour.i--; },
+  tourEnd(){ S.tour = null; tourDone(); toast('เปิดวิธีใช้ได้ตลอดจากปุ่ม ? มุมขวาบน'); },
   async forgot(){ const em = (S.auth.email || '').trim(); if (!em) return toast('กรอกอีเมล');
     S.busy = true; render(); const {error} = await sb.auth.resetPasswordForEmail(em, {redirectTo:location.origin + location.pathname}); S.busy = false;
     if (error) return toast(error.message); S.auth.msg = 'ถ้าอีเมลนี้ลงทะเบียนไว้ ระบบส่งลิงก์ตั้งรหัสผ่านใหม่ให้แล้ว ตรวจกล่องจดหมาย (รวมถึงจดหมายขยะ)'; },
@@ -821,6 +828,76 @@ async function openScanner(){
 
 async function markRead(){ if (!S.notifs.some(n => !n.read)) return; await sb.from('notifications').update({read:true}).eq('user_id', S.me.id).eq('read', false); setTimeout(() => { S.notifs.forEach(n => n.read = true); render(); }, 4000); }
 
+/* ================= แนะนำการใช้งาน ================= */
+const TOUR = {
+  citizen:[
+    {t:'ยินดีต้อนรับสู่ ReSpace', b:'บริการซ่อมเครื่องใช้ไฟฟ้าของท้องถิ่น ฟรีทุกขั้นตอน ไม่มีค่าโต๊ะ ค่าเครื่องมือ หรือมัดจำ ใช้เวลาแนะนำไม่ถึง 1 นาที'},
+    {t:'1. ส่งรูปให้ช่างดูก่อน', b:'กด “ตรวจเบื้องต้น” ถ่ายรูปเครื่อง 3 มุม เลือกอาการ ระบบคัดกรองความเสี่ยงให้ทันที แล้วช่างจะประเมินภายใน 24 ชั่วโมง', sel:'[data-a=newTriage]'},
+    {t:'2. จองโต๊ะซ่อม', b:'เมื่อช่างประเมินแล้ว กด “จองซ่อม” เลือกวัน เวลา และโต๊ะ ถ้าวันที่ต้องการเต็ม ลงชื่อรอคิวสำรองได้', sel:'[data-a=go][data-n=pickCase]'},
+    {t:'3. เช็กอินด้วย QR', b:'วันนัดเปิดคิวที่หน้าแรกหรือ “ประวัติ” แล้วให้เจ้าหน้าที่สแกน QR มาไม่ได้ให้ยกเลิกในแอปเพื่อคืนคิว', sel:'[data-a=tab][data-id=cases]'},
+    {t:'4. เรียนซ่อมฟรี', b:'แท็บ “เรียนรู้” มีเวิร์กช็อปฝึกทักษะ เข้าเรียนครบได้ใบรับรอง และมีคู่มือซ่อมพื้นฐาน', sel:'[data-a=tab][data-id=kb]'},
+    {t:'5. แจ้งเตือนและโปรไฟล์', b:'ดูแจ้งเตือนทั้งหมด แก้ข้อมูล หรือสมัครเป็นช่างอาสาได้ที่ “โปรไฟล์”', sel:'[data-a=tab][data-id=me]'},
+    {t:'ดูวิธีใช้ได้ตลอด', b:'กดปุ่ม ? มุมขวาบนเพื่อเปิดคู่มือและคำถามที่พบบ่อย หรือเริ่มทัวร์นี้อีกครั้ง', sel:'#help-btn'}],
+  tech:[
+    {t:'สวัสดีช่าง', b:'แนะนำเครื่องมือของช่างสั้น ๆ 4 ขั้น'},
+    {t:'คิวประเมิน', b:'เคสที่รอประเมินเรียงตามความเสี่ยงและเวลาที่เหลือ เปิดเคส ดูรูป แชตกับผู้แจ้ง แล้วส่งผลประเมิน เคสเสี่ยงสูงระบบล็อกไม่ให้ “ซ่อมเองได้”', sel:'[data-a=tab][data-id=queue]'},
+    {t:'งานหน้างาน', b:'สแกน QR เช็กอินได้ทั้งคิวซ่อม (RS-) และผู้เข้าเวิร์กช็อป (WS-) บันทึกผล ตรวจรับเครื่องมือคืน และบันทึกการรับทิ้งขยะ', sel:'[data-a=tab][data-id=jobs]'},
+    {t:'ชั่วโมงงาน', b:'หน้าโปรไฟล์แสดงชั่วโมงงานเดือนนี้ นับอัตโนมัติจากงานซ่อมและคลาสที่สอน', sel:'[data-a=tab][data-id=me]'},
+    {t:'ดูวิธีใช้ได้ตลอด', b:'กดปุ่ม ? มุมขวาบนเมื่อต้องการคู่มือ', sel:'#help-btn'}],
+  admin:[
+    {t:'สวัสดีแอดมิน', b:'แนะนำหน้าจอจัดการศูนย์ 6 ขั้น'},
+    {t:'ภาพรวมและตัวชี้วัด', b:'ติดตามเป้าหมายโครงการ 4 ข้อ เลือกช่วงปีงบหรือเดือน และส่งออก CSV ไปรายงานเทศบาล', sel:'[data-a=tab][data-id=dash]'},
+    {t:'คิวและคิวสำรอง', b:'ตารางคิวรายโต๊ะ บันทึกไม่มาตามนัด และดูผู้รอคิวสำรอง', sel:'[data-a=tab][data-id=sched]'},
+    {t:'ผู้ใช้และช่างอาสา', b:'ยืนยันสิทธิ์คนในพื้นที่ อนุมัติใบสมัครช่าง ดูชั่วโมงงาน และคำขอลบข้อมูล (PDPA)', sel:'[data-a=tab][data-id=users]'},
+    {t:'คลังและขยะ', b:'สต็อกเครื่องมือ อะไหล่ และประวัติการรับทิ้งขยะอิเล็กทรอนิกส์', sel:'[data-a=tab][data-id=stock]'},
+    {t:'อบรม', b:'เปิดเวิร์กช็อป กำหนดที่นั่งและผู้สอน ดูรายชื่อผู้เข้าเรียน', sel:'[data-a=tab][data-id=ws]'},
+    {t:'ตั้งค่า', b:'ปิด “เช็กอินก่อนวันนัด” ก่อนเปิดใช้จริง แก้เป้าหมายตัวชี้วัด และดูบันทึกการดำเนินการ', sel:'[data-a=tab][data-id=log]'}]
+};
+const tourKey = () => 'rs-tour-' + role();
+const tourSeen = () => { try { return localStorage.getItem(tourKey()) === '1'; } catch (e) { return true; } };
+const tourDone = () => { try { localStorage.setItem(tourKey(), '1'); } catch (e) {} };
+function tourHtml(){ const t = S.tour; if (!t) return ''; const steps = TOUR[role()], st = steps[t.i], last = t.i === steps.length - 1;
+  return `<div class="tour-card" role="dialog" aria-modal="true" aria-labelledby="tour-t" aria-describedby="tour-b">
+  <div class="row between"><span class="small muted">ขั้นที่ ${t.i + 1} จาก ${steps.length}</span><button type="button" class="link small" data-a="tourEnd">ข้ามการแนะนำ</button></div>
+  <h2 id="tour-t">${esc(st.t)}</h2><p id="tour-b">${esc(st.b)}</p>
+  <div class="steps" aria-hidden="true">${steps.map((_, i) => `<i class="${i <= t.i ? 'on' : ''}"></i>`).join('')}</div>
+  <div class="row"><button type="button" class="btn" data-a="tourPrev" ${t.i ? '' : 'disabled'}>ย้อนกลับ</button><button type="button" class="btn pri grow" id="tour-next" data-a="${last ? 'tourEnd' : 'tourNext'}">${last ? 'เริ่มใช้งาน' : 'ถัดไป'}</button></div></div>`; }
+function paintTour(){ let box = $('#tour'); document.querySelectorAll('.tour-hi').forEach(e => e.classList.remove('tour-hi'));
+  if (!S.tour || !S.session || !S.me){ if (box) box.remove(); return; }
+  if (!box){ box = document.createElement('div'); box.id = 'tour'; box.className = 'tour'; document.body.appendChild(box); }
+  box.innerHTML = tourHtml(); const st = TOUR[role()][S.tour.i], el = st.sel && $(st.sel);
+  if (el){ el.classList.add('tour-hi'); el.scrollIntoView({block:'center', behavior:'smooth'}); }
+  if (!box.contains(document.activeElement)) $('#tour-next')?.focus(); }
+const HELP = {
+  citizen:{t:'สำหรับประชาชน', steps:[['ส่งเคสตรวจเบื้องต้น','หน้าแรก → ตรวจเบื้องต้น → เลือกเครื่อง ถ่ายรูป 3 มุม เลือกอาการ แล้วส่ง ระบบคัดกรองความเสี่ยงทันที ช่างตอบภายใน 24 ชั่วโมง'],
+    ['คุยกับช่าง','เปิดเคสจากหน้าแรกหรือ “ประวัติ” มีช่องแชตด้านล่าง เบอร์โทรของคุณไม่แสดงให้ช่างเห็น'],
+    ['จองซ่อม','เมื่อเคสประเมินแล้ว กด “จองซ่อม” เลือกรูปแบบ (ซ่อมเองมีช่างกำกับ หรือให้ช่างซ่อม) วัน เวลา โต๊ะ และอะไหล่ จองค้างได้ 2 คิว'],
+    ['วันเต็ม','กด “ลงชื่อรอคิว” เมื่อมีคนยกเลิก ระบบแจ้งคุณและกันที่ไว้ให้ 2 ชั่วโมง กด “จองเลย” จากหน้าแรก'],
+    ['วันนัด','เปิดคิวแล้วแสดง QR ให้เจ้าหน้าที่สแกน ทำงานตามขอบเขตที่ช่างอนุมัติ กด “เรียกช่าง” ได้ทุกเมื่อ คืนเครื่องมือก่อนกลับ'],
+    ['เวิร์กช็อปและใบรับรอง','แท็บ “เรียนรู้” → ลงทะเบียนฟรี → แสดง QR วันเรียน → ใบรับรองอยู่ในหน้าเดียวกัน พิมพ์หรือบันทึก PDF ได้']]},
+  tech:{t:'สำหรับช่าง', steps:[['ประเมินเคส','คิวประเมิน → เปิดเคส → ดูรูปและอาการ (มีความเห็นจาก AI ถ้าผู้แจ้งยินยอม) → เลือกผล สาเหตุ อะไหล่ เครื่องมือ → ส่ง'],
+    ['เช็กอิน','งานหน้างาน → สแกน QR ด้วยกล้อง หรือพิมพ์รหัส RS- (คิวซ่อม) / WS- (เวิร์กช็อป)'],
+    ['ระหว่างซ่อม','ส่งมอบโต๊ะ → รับเรื่องเมื่อผู้รับบริการเรียก → รับช่วงงานได้ถ้าไม่ปลอดภัย → บันทึกผลและอะไหล่ที่ใช้จริง → ตรวจรับเครื่องมือคืน'],
+    ['รับทิ้งขยะ','งานหน้างาน → บันทึกการรับทิ้ง → ชั่งน้ำหนัก ใส่จำนวนอะไหล่ที่ถอดได้ ระบบรับเข้าคลังให้']]},
+  admin:{t:'สำหรับแอดมิน', steps:[['รายงานตัวชี้วัด','ภาพรวม → เลือกปีงบ / เดือน → ส่งออก CSV แก้เป้าหมายและค่าแรงมาตรฐานที่ “ตั้งค่า”'],
+    ['ผู้ใช้','ยืนยันสิทธิ์คนในพื้นที่ คืนสิทธิ์การจอง ตั้งบทบาท อนุมัติช่างอาสา บันทึกชั่วโมงงานอื่น'],
+    ['คำขอลบข้อมูล (PDPA)','หน้าผู้ใช้แสดงคำขอ ลบผู้ใช้ใน Supabase Dashboard → Authentication → Users ภายใน 30 วัน'],
+    ['เวิร์กช็อป','อบรม → สร้างเวิร์กช็อปใหม่ → ยกเลิกได้ ระบบแจ้งผู้ลงทะเบียนให้'],
+    ['ข้อมูลเปิด','หน้าสาธารณะ ?open แสดงสถิติรวมไม่ระบุตัวบุคคล ดาวน์โหลด CSV/JSON']]}
+};
+const FAQ = [['มีค่าใช้จ่ายไหม','ไม่มี โต๊ะ เครื่องมือ คำแนะนำจากช่าง และอะไหล่พื้นฐานของศูนย์ฟรีทั้งหมด ไม่มีมัดจำ'],
+  ['ซ่อมเองได้ทุกเครื่องไหม','ไม่ได้ เครื่องที่เสี่ยงสูง เช่น ไมโครเวฟ ตู้เย็น แบตเตอรี่บวม หรือเคยโดนน้ำ ต้องให้ช่างทำ ซ่อมเองได้เฉพาะขอบเขตที่ช่างอนุมัติ'],
+  ['มาไม่ได้ทำอย่างไร','ยกเลิกในแอปก่อนเวลานัดเพื่อคืนคิวให้คนอื่น ไม่มาตามนัดครบ 2 ครั้งจะถูกพักสิทธิ์การจอง ติดต่อเคาน์เตอร์เพื่อขอคืนสิทธิ์'],
+  ['ข้อมูลของฉันปลอดภัยไหม','ศูนย์เก็บเฉพาะข้อมูลที่ใช้ให้บริการ เบอร์โทรเห็นเฉพาะคุณและแอดมิน รูปเครื่องเห็นเฉพาะคุณและเจ้าหน้าที่ ขอลบข้อมูลทั้งหมดได้ที่หน้าโปรไฟล์'],
+  ['AI ทำอะไร','ถ้าคุณยินยอม AI ช่วยสรุปความเห็นเบื้องต้นจากรูปให้ช่างอ่าน ไม่ส่งชื่อหรือเบอร์โทร และช่างเป็นผู้ตัดสินเสมอ'],
+  ['ติดตั้งเป็นแอปบนมือถือได้ไหม','ได้ เปิดเว็บในเบราว์เซอร์แล้วเลือก “เพิ่มไปยังหน้าจอหลัก” (iPhone: ปุ่มแชร์ · Android: เมนู ⋮)']];
+function vHelp(){ const r = S.session && S.me ? role() : null, order = r ? [r, ...Object.keys(HELP).filter(k => k !== r && (r === 'admin' || k === 'citizen'))] : ['citizen'];
+  return `<h1 tabindex="-1">วิธีใช้งาน</h1><p class="muted small">คู่มือสั้นแบ่งตามบทบาท และคำถามที่พบบ่อย</p>
+  ${r ? `<div><button type="button" class="btn pri" data-a="tourStart">เริ่มทัวร์แนะนำอีกครั้ง</button></div>` : ''}
+  ${order.map((k, j) => `<details class="card" ${j ? '' : 'open'}><summary><b>${HELP[k].t}</b></summary><ol class="plain">${HELP[k].steps.map(([a, b]) => `<li><b>${esc(a)}</b><br><span class="small">${esc(b)}</span></li>`).join('')}</ol></details>`).join('')}
+  <h2>คำถามที่พบบ่อย</h2>${FAQ.map(([q, a]) => `<details class="card"><summary><b>${esc(q)}</b></summary><p class="small">${esc(a)}</p></details>`).join('')}
+  <div class="card"><h2>ติดต่อศูนย์</h2><p class="small">สอบถามได้ที่เคาน์เตอร์${ORG} ในเวลาทำการ หรือแชตกับช่างในเคสของคุณ</p></div>`; }
+
 /* ================= วาดหน้าจอ ================= */
 let lastViewKey = '';
 function render(){
@@ -828,19 +905,20 @@ function render(){
   if (!S.ready){ main.innerHTML = `<p class="muted" role="status">กำลังโหลด…</p>`; return; }
   if (S.openMode){ $('nav.tabs').hidden = true; tabs.innerHTML = ''; if (!S.session) user.innerHTML = ''; main.innerHTML = vOpen(); }
   else if (S.recovery && S.session){ user.innerHTML = ''; tabs.innerHTML = ''; $('nav.tabs').hidden = true; main.innerHTML = vNewPw(); }
-  else if (!S.session || !S.me){ user.innerHTML = ''; tabs.innerHTML = ''; $('nav.tabs').hidden = true; main.innerHTML = vAuth(); }
+  else if (!S.session || !S.me){ user.innerHTML = ''; tabs.innerHTML = ''; $('nav.tabs').hidden = true; main.innerHTML = S.helpMode ? `<div><button type="button" class="link" data-a="helpClose">← กลับไปหน้าเข้าสู่ระบบ</button></div>` + vHelp() : vAuth(); }
   else {
     $('nav.tabs').hidden = false;
     const nm = S.me.full_name || S.session.user.email;
-    user.innerHTML = `<div class="who"><span class="avatar" aria-hidden="true">${esc([...nm][0] || '?')}</span><span class="stack" style="gap:0;min-width:0"><span class="nm">${esc(nm)}</span><span class="rl">${ROLE[role()]}</span></span></div><button type="button" class="icon-btn" data-a="logout" aria-label="ออกจากระบบ" title="ออกจากระบบ">${ico('logout')}</button>`;
-    main.innerHTML = role() === 'citizen' ? citizenView() : role() === 'tech' ? techView() : adminView();
+    user.innerHTML = `<div class="who"><span class="avatar" aria-hidden="true">${esc([...nm][0] || '?')}</span><span class="stack" style="gap:0;min-width:0"><span class="nm">${esc(nm)}</span><span class="rl">${ROLE[role()]}</span></span></div><button type="button" class="icon-btn" id="help-btn" data-a="help" aria-label="วิธีใช้งาน" title="วิธีใช้งาน">${ico('help')}</button><button type="button" class="icon-btn" data-a="logout" aria-label="ออกจากระบบ" title="ออกจากระบบ">${ico('logout')}</button>`;
+    main.innerHTML = S.view?.n === 'help' ? back() + vHelp() : role() === 'citizen' ? citizenView() : role() === 'tech' ? techView() : adminView();
     const unread = S.notifs.filter(n => !n.read).length;
     tabs.innerHTML = TABS[role()].map(([k, t]) => `<button type="button" data-a="tab" data-id="${k}" ${!S.view && S.tab === k ? 'aria-current="page"' : ''}>${ico(k)}<span class="t">${t}</span>${k === 'me' && unread ? `<span class="badge"><span aria-hidden="true">${unread}</span><span class="sr">แจ้งเตือนใหม่ ${unread} รายการ</span></span>` : ''}</button>`).join('');
   }
   document.querySelectorAll('[data-qr]').forEach(el => { try { const q = qrcode(0, 'M'); q.addData(el.dataset.qr); q.make(); el.innerHTML = q.createSvgTag({cellSize:4, margin:0, scalable:true}); } catch (e) { el.hidden = true; } });
   const cl = $('#chatlog'); if (cl) cl.scrollTop = cl.scrollHeight;
+  paintTour();
   const key = (S.session ? role() + S.tab : 'auth' + S.auth.mode) + JSON.stringify(S.view) + (S.d.step || '');
-  if (key !== lastViewKey){ lastViewKey = key; const h = main.querySelector('h1'); if (h && document.activeElement !== h && !main.contains(document.activeElement)) h.focus({preventScroll:false}); }
+  if (key !== lastViewKey){ lastViewKey = key; const h = main.querySelector('h1'); if (!S.tour && h && document.activeElement !== h && !main.contains(document.activeElement)) h.focus({preventScroll:false}); }
 }
 async function act(el){
   const name = el.dataset.a, nav = ['tab','go','back'].includes(name);
@@ -854,6 +932,7 @@ document.addEventListener('submit', e => {
   if (e.target.id === 'newpw-form'){ e.preventDefault(); S.recovery_pw = $('#np-pw').value; A.newpw().catch(fail).finally(render); }
 });
 document.addEventListener('input', e => { const el = e.target; if (!el.dataset.m) return; const tgt = S.session && S.me ? S.d : S.auth; tgt[el.dataset.m] = el.type === 'checkbox' ? el.checked : el.value; });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && S.tour){ A.tourEnd(); render(); return; } });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.dataset.enter){ e.preventDefault(); act({dataset:{...e.target.dataset, a:e.target.dataset.enter}}).then(() => $('#' + e.target.id)?.focus()); } });
 document.addEventListener('change', async e => { const el = e.target; if (!el.dataset.ph || !el.files[0]) return;
   try { S.d.photos[el.dataset.ph] = await resize(el.files[0]); } catch (err) { toast('อ่านไฟล์ภาพไม่ได้ ลองภาพอื่น'); } render(); });
@@ -878,7 +957,7 @@ sb.auth.onAuthStateChange((event, session) => {
     if (!session){ Object.assign(S, blank(), {me:null, view:null, d:{}, tab:'home'}); S.ready = true; render();
       sb.rpc('public_stats').then(({data}) => { if (data){ S.pub = data; if (!S.session) render(); } }); return; }
     if (changed || event === 'SIGNED_IN' || !S.me){
-      try { await loadAll(); S.tab = TABS[role()][0][0]; S.view = null; S.d = {}; } catch (e) { fail(e); }
+      try { await loadAll(); S.tab = TABS[role()][0][0]; S.view = null; S.d = {}; if (!tourSeen()) S.tour = {i:0}; } catch (e) { fail(e); }
     }
     S.ready = true; render();
   }, 0);

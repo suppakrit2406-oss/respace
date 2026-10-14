@@ -28,7 +28,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.6 var(--font
 .wrap{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
 
 /* Header */
-header.top{position:sticky;top:0;z-index:5;margin-inline:-16px;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;display:flex;gap:10px;align-items:center;justify-content:space-between;background:color-mix(in srgb,var(--bg) 86%,transparent);-webkit-backdrop-filter:saturate(1.4) blur(12px);backdrop-filter:saturate(1.4) blur(12px);border-bottom:1px solid transparent}
+header.top{position:sticky;top:0;z-index:5;margin-inline:-16px;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;display:flex;gap:10px;align-items:center;justify-content:space-between;background:color-mix(in srgb,var(--bg) 96%,transparent);-webkit-backdrop-filter:saturate(1.4) blur(12px);backdrop-filter:saturate(1.4) blur(12px);border-bottom:1px solid transparent}
 .brand{display:flex;align-items:center;gap:8px;font:700 19px/1 var(--font);letter-spacing:-.01em}
 .brand svg{width:28px;height:28px;flex:none}
 .brand span{color:var(--accent)}
@@ -218,3 +218,10 @@ main:focus,h1:focus{outline:none}
 .odb{flex:1;min-width:44px;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px}
 .odb i{display:block;width:100%;max-width:48px;background:var(--accent);border-radius:6px 6px 0 0}
 .odb i.sup{background:repeating-linear-gradient(45deg,var(--accent) 0 4px,var(--accent-soft) 4px 8px)}
+/* Guided tour */
+.tour{position:fixed;inset:0;z-index:15;background:rgba(10,20,25,.45);display:flex;align-items:flex-start;justify-content:center;padding:calc(76px + env(safe-area-inset-top,0px)) 16px 16px}
+.tour-card{background:var(--surface);color:var(--ink);border-radius:20px;padding:20px;max-width:420px;width:100%;display:flex;flex-direction:column;gap:12px;box-shadow:0 16px 48px rgba(0,0,0,.3)}
+.tour-card h2{margin:0;font-size:21px}
+.tour-hi{position:relative;z-index:16;outline:3px solid var(--accent)!important;outline-offset:3px;border-radius:14px;box-shadow:0 0 0 9999px rgba(10,20,25,0)}
+nav.tabs:has(.tour-hi){z-index:16}
+header.top:has(.tour-hi){z-index:16}
